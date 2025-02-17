@@ -1,4 +1,4 @@
-from demo import ViewCrafter4D
+from demo import TrajCrafter
 import os
 from datetime import datetime
 import argparse
@@ -63,7 +63,7 @@ if __name__=="__main__":
         opts.exp_name = f'{prefix}_{os.path.splitext(os.path.basename(opts.video_path))[0]}'
     opts.save_dir = os.path.join(opts.out_dir,opts.exp_name)
     os.makedirs(opts.save_dir,exist_ok=True)
-    pvd = ViewCrafter4D(opts)
+    pvd = TrajCrafter(opts)
     if opts.mode == 'gradual':
         pvd.infer_gradual(opts)
     elif opts.mode == 'direct':

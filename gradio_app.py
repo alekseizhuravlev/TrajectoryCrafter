@@ -1,7 +1,7 @@
 import os
 import torch
 import sys
-from demo import ViewCrafter4D
+from demo import TrajCrafter
 import random
 import gradio as gr
 import random
@@ -65,20 +65,11 @@ def show_traj(mode):
 
 def viewcrafter_demo(opts):
     css = """#input_img {max-width: 1024px !important} #output_vid {max-width: 1024px; max-height:576px} #random_button {max-width: 100px !important}"""
-    image2video = ViewCrafter4D(opts,gradio=True)
+    image2video = TrajCrafter(opts,gradio=True)
     # image2video.run_both = spaces.GPU(image2video.run_both, duration=290) # fixme
     with gr.Blocks(analytics_enabled=False, css=css) as viewcrafter_iface:
-        gr.Markdown("<div align='center'> <h1> ViewCrafter: Taming Video Diffusion Models for High-fidelity Novel View Synthesis </span> </h1>")
-        # gr.Markdown("<div align='center'> <h1> ViewCrafter: Taming Video Diffusion Models for High-fidelity Novel View Synthesis </span> </h1> \
+        gr.Markdown("<div align='center'> <h1> TrajectoryCrafter: Generative View Trajectory Redirection for Monocular Videos </span> </h1>")
         #             #   <h2 style='font-weight: 450; font-size: 1rem; margin: 0rem'>\
-        #             #     <a href='https://scholar.google.com/citations?user=UOE8-qsAAAAJ&hl=zh-CN'>Wangbo Yu</a>, \
-        #             #     <a href='https://doubiiu.github.io/'>Jinbo Xing</a>, <a href=''>Li Yuan</a>, \
-        #             #     <a href='https://wbhu.github.io/'>Wenbo Hu</a>, <a href='https://xiaoyu258.github.io/'>Xiaoyu Li</a>,\
-        #             #     <a href=''>Zhipeng Huang</a>, <a href='https://scholar.google.com/citations?user=qgdesEcAAAAJ&hl=en/'>Xiangjun Gao</a>,\
-        #             #     <a href='https://www.cse.cuhk.edu.hk/~ttwong/myself.html/'>Tien-Tsin Wong</a>,\
-        #             #     <a href='https://scholar.google.com/citations?hl=en&user=4oXBp9UAAAAJ&view_op=list_works&sortby=pubdate/'>Ying Shan</a>\
-        #             #     <a href=''>Yonghong Tian</a>\
-        #             # </h2> \
         #             #  <a style='font-size:18px;color: #000000' href='https://arxiv.org/abs/2409.02048'> [ArXiv] </a>\
         #             #  <a style='font-size:18px;color: #000000' href='https://drexubery.github.io/ViewCrafter/'> [Project Page] </a>\
         #             #  <a style='font-size:18px;color: #FF5DB0' href='https://github.com/Drexubery/ViewCrafter'> [Github] </a>\
@@ -225,5 +216,5 @@ def viewcrafter_demo(opts):
 viewcrafter_iface = viewcrafter_demo(opts)
 viewcrafter_iface.queue(max_size=10)
 # viewcrafter_iface.launch() #fixme
-viewcrafter_iface.launch(server_name='10.13.10.45', server_port=80, max_threads=10,debug=True)
+viewcrafter_iface.launch(server_name='10.13.10.45', max_threads=10,debug=True)
 

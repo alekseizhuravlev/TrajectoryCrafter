@@ -10,7 +10,7 @@ from omegaconf import OmegaConf
 from PIL import Image
 from models.crosstransformer3d import CrossTransformer3DModel
 from models.autoencoder_magvit import AutoencoderKLCogVideoX
-from models.pipeline_viewcrafter4d import ViewCrafter4D_Pipeline
+from models.pipeline_trajectorycrafter import TrajCrafter_Pipeline
 from models.utils import *
 from diffusers import (AutoencoderKL, CogVideoXDDIMScheduler, DDIMScheduler,
                        DPMSolverMultistepScheduler,
@@ -18,10 +18,10 @@ from diffusers import (AutoencoderKL, CogVideoXDDIMScheduler, DDIMScheduler,
                        PNDMScheduler)
 from transformers import AutoProcessor, Blip2ForConditionalGeneration
 
-class ViewCrafter4D:
+class TrajCrafter:
     def __init__(self, opts, gradio=False):
-        # self.depth_estimater = VDADemo(pre_train_path=opts.pre_train_path_vda,device=opts.device)
         self.funwarp = Warper(device=opts.device)
+        # self.depth_estimater = VDADemo(pre_train_path=opts.pre_train_path_vda,device=opts.device)
         self.depth_estimater = DepthCrafterDemo(unet_path=opts.unet_path,pre_train_path=opts.pre_train_path,cpu_offload=opts.cpu_offload,device=opts.device)
         self.caption_processor = AutoProcessor.from_pretrained(opts.blip_path)
         self.captioner = Blip2ForConditionalGeneration.from_pretrained(opts.blip_path, torch_dtype=torch.float16).to(opts.device)
@@ -277,7 +277,7 @@ class ViewCrafter4D:
             subfolder="scheduler"
         )
 
-        self.pipeline = ViewCrafter4D_Pipeline.from_pretrained(
+        self.pipeline = TrajCrafter_Pipeline.from_pretrained(
             opts.model_name,
             vae=vae,
             text_encoder=text_encoder,
