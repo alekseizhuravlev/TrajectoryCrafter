@@ -51,15 +51,15 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 git clone https://github.com/TrajectoryCrafter/TrajectoryCrafter.git
 cd TrajectoryCrafter
 ```
-### 2. Installation
-
+### 2. Setup Environments
 ```bash
-# Create conda environment
 conda create -n trajcrafter python=3.10
 conda activate trajcrafter
 pip install -r requirements.txt
+```
 
-# Download pretrained models
+### 3. Download pretrained models
+```bash
 mkdir -p checkpoints/
 wget https://download.europe.naverlabs.com/ComputerVision/DUSt3R/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth -P checkpoints/
 
