@@ -51,7 +51,7 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 git clone https://github.com/TrajectoryCrafter/TrajectoryCrafter.git
 cd TrajectoryCrafter
 ```
-### 2. Setup Environments
+### 2. Setup environments
 ```bash
 conda create -n trajcrafter python=3.10
 conda activate trajcrafter
@@ -73,7 +73,7 @@ Run [inference.py](./inference.py) using the following script. Please refer to t
   sh run.sh
 ```
 
-### 2. Local Gradio demo
+### 2. Local gradio demo
 
 ```bash
   python gradio_app.py 
