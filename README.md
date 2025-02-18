@@ -67,43 +67,18 @@ wget https://download.europe.naverlabs.com/ComputerVision/DUSt3R/DUSt3R_ViTLarge
 
 ## 💫 Inference 
 ### 1. Command line
-### Single view novel view synthesis
-(1) Download pretrained [ViewCrafter_25](https://huggingface.co/Drexubery/ViewCrafter_25/blob/main/model.ckpt) and put the `model.ckpt` in `checkpoints/model.ckpt`. \
-(2) Run [inference.py](./inference.py) using the following script. Please refer to the [configuration document](docs/config_help.md) and [render document](docs/render_help.md) to set up inference parameters and camera trajectory. 
+
+Run [inference.py](./inference.py) using the following script. Please refer to the [configuration document](docs/config_help.md) and [render document](docs/render_help.md) to set up inference parameters and camera trajectory. 
 ```bash
   sh run.sh
 ```
-### Sparse view novel view synthesis
-(1) Download pretrained [ViewCrafter_25_sparse](https://huggingface.co/Drexubery/ViewCrafter_25_sparse/blob/main/model_sparse.ckpt) and put the `model_sparse.ckpt` in `checkpoints/model_sparse.ckpt`. ([ViewCrafter_25_sparse](https://huggingface.co/Drexubery/ViewCrafter_25_sparse/blob/main/model_sparse.ckpt) is specifically trained for the sparse view NVS task and performs better than [ViewCrafter_25](https://huggingface.co/Drexubery/ViewCrafter_25/blob/main/model.ckpt) on this task) \
-(2) Run [inference.py](./inference.py) using the following script. Adjust the `--bg_trd` parameter to clean the point cloud; higher values will produce a cleaner point cloud but may create holes in the background.
-```bash
-  sh run_sparse.sh
-```
+
 ### 2. Local Gradio demo
 
-Download pretrained [ViewCrafter_25](https://huggingface.co/Drexubery/ViewCrafter_25/blob/main/model.ckpt) and put the `model.ckpt` in `checkpoints/model.ckpt`, then run:
 ```bash
   python gradio_app.py 
 ```
 
-## 📈 Evaluation
-
-We provide a demo script to evaluate single-view novel view synthesis:
-```bash
-  sh run_eval.sh
-```
-The input should be a folder containing frames from your test video. We use the first frame as the reference image and the subsequent frames as target novel views.
-
-## 😉 Citation
-Please consider citing our paper if our code is useful:
-```bib
-  @article{yu2024viewcrafter,
-    title={ViewCrafter: Taming Video Diffusion Models for High-fidelity Novel View Synthesis},
-    author={Yu, Wangbo and Xing, Jinbo and Yuan, Li and Hu, Wenbo and Li, Xiaoyu and Huang, Zhipeng and Gao, Xiangjun and Wong, Tien-Tsin and Shan, Ying and Tian, Yonghong},
-    journal={arXiv preprint arXiv:2409.02048},
-    year={2024}
-  }
-```
 
 <a name="disc"></a>
 ## 📢 Disclaimer
