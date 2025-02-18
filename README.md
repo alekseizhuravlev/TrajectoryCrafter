@@ -63,6 +63,7 @@ pip install -r requirements.txt
 mkdir -p checkpoints/
 wget https://download.europe.naverlabs.com/ComputerVision/DUSt3R/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth -P checkpoints/
 
+```
 
 ## 💫 Inference 
 ### 1. Command line
