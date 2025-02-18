@@ -20,7 +20,7 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 
 <table class="center">
     <tr style="font-weight: bolder;">
-        <td>Input Video &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; Generated Novel Views</td>
+        <td>Input Video &emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;&emsp; Generated Novel Views</td>
     </tr>
   <td>
     <img src=assets/a1.gif style="width: 100%; height: auto;">
