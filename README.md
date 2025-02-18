@@ -44,42 +44,25 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 </table>
 
 
-
-
-## 🧰 Models
-
-|Model|Resolution|Frames|GPU Mem. & Inference Time (tested on a 40G A100, ddim 50 steps)|Checkpoint|Description|
-|:---------|:---------|:--------|:--------|:--------|:--------|
-|ViewCrafter_25|576x1024|25| 23.5GB & 120s (`perframe_ae=True`)|[Hugging Face](https://huggingface.co/Drexubery/ViewCrafter_25/blob/main/model.ckpt)|Used for single view NVS, can also adapt to sparse view NVS|
-|ViewCrafter_25_sparse|576x1024|25| 23.5GB & 120s (`perframe_ae=True`)|[Hugging Face](https://huggingface.co/Drexubery/ViewCrafter_25_sparse/blob/main/model_sparse.ckpt)|Used for sparse view NVS|
-|ViewCrafter_16|576x1024|16| 18.3GB & 75s (`perframe_ae=True`)|[Hugging Face](https://huggingface.co/Drexubery/ViewCrafter_16/blob/main/model.ckpt)|16 frames model, used for ablation|
-|ViewCrafter_25_512|320x512|25| 13.8GB & 50s (`perframe_ae=True`)|[Hugging Face](https://huggingface.co/Drexubery/ViewCrafter_25_512/blob/main/model.ckpt)|512 resolution model, used for ablation|
-
 ## ⚙️ Setup
 
-### 1. Clone ViewCrafter
+### 1. Clone TrajectoryCrafter
 ```bash
-git clone https://github.com/Drexubery/ViewCrafter.git
-cd ViewCrafter
+git clone https://github.com/TrajectoryCrafter/TrajectoryCrafter.git
+cd TrajectoryCrafter
 ```
 ### 2. Installation
 
 ```bash
 # Create conda environment
-conda create -n viewcrafter python=3.9.16
-conda activate viewcrafter
+conda create -n trajcrafter python=3.10
+conda activate trajcrafter
 pip install -r requirements.txt
 
-# Install PyTorch3D
-conda install https://anaconda.org/pytorch3d/pytorch3d/0.7.5/download/linux-64/pytorch3d-0.7.5-py39_cu117_pyt1131.tar.bz2
-
-# Download pretrained DUSt3R model
+# Download pretrained models
 mkdir -p checkpoints/
 wget https://download.europe.naverlabs.com/ComputerVision/DUSt3R/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth -P checkpoints/
 
-```
-> [!NOTE]
-> If you use a high PyTorch version (like torch 2.4), it may cause CUDA OOM error. Please refer to [these issues](https://github.com/Drexubery/ViewCrafter/issues/23#issuecomment-2396131121) for solutions.
 
 ## 💫 Inference 
 ### 1. Command line
