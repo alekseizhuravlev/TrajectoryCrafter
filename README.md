@@ -20,7 +20,7 @@
 TrajectoryCrafter can generate high-fidelity novel views from <strong>casually captured monocular video</strong>, while also supporting highly precise pose control. Below shows some examples:
 
 <table class="center">
-    <tr style="font-weight: bolder;text-align:center;">
+    <tr style="font-weight: bolder;">
         <td>Input Video &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp   Generated Novel Views</td>
     </tr>
   <td>
@@ -29,12 +29,12 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
   </tr>
   <tr>
   <td>
-    <img src=assets/a2.gif style="width: 100%; height: auto;">
+    <img src=assets/a3.gif style="width: 100%; height: auto;">
   </td>
   </tr> 
   <tr>
   <td>
-    <img src=assets/a3.gif style="width: 100%; height: auto;">
+    <img src=assets/a2.gif style="width: 100%; height: auto;">
   </td>
   </tr>
     <tr>
