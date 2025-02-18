@@ -24,8 +24,7 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
     </tr> -->
   <tr style="font-weight: bolder; text-align: center;">
     <td>
-        <span style="padding-right: 50px;">Input Video</span>
-        <span>-------------------------------</span>
+        <span style="padding-left: 50px;">Input Video</span>
         <span style="padding-left: 50px;">Generated Novel Views</span>
     </td>
 </tr>
