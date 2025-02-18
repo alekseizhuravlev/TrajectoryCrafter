@@ -6,7 +6,6 @@
  <a href='https://www.youtube.com/watch?v=WGIEmu9eXmU'><img src='https://img.shields.io/badge/Youtube-Video-b31b1b.svg'></a>&nbsp;
  <a href='https://huggingface.co/spaces/Doubiiu/ViewCrafter'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a> &nbsp;
 
-<br><br>
 
 </div>
 
@@ -20,9 +19,16 @@
 TrajectoryCrafter can generate high-fidelity novel views from <strong>casually captured monocular video</strong>, while also supporting highly precise pose control. Below shows some examples:
 
 <table class="center">
-    <tr style="font-weight: bolder;">
-        <td>Input Video &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp-------------------------------   Generated Novel Views</td>
-    </tr>
+    <!-- <tr style="font-weight: bolder;">
+        <td>Input Video &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp Generated Novel Views</td>
+    </tr> -->
+  <tr style="font-weight: bolder; text-align: center;">
+    <td>
+        <span style="padding-right: 50px;">Input Video</span>
+        <span>-------------------------------</span>
+        <span style="padding-left: 50px;">Generated Novel Views</span>
+    </td>
+</tr>
   <td>
     <img src=assets/a1.gif style="width: 100%; height: auto;">
   </td>
