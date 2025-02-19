@@ -33,7 +33,7 @@ def get_parser():
     parser.add_argument('--low_gpu_memory_mode', type=bool, default=False, help='Enable low GPU memory mode')
     parser.add_argument('--model_name', type=str, default='checkpoints/CogVideoX-Fun-V1.1-5b-InP', help='Path to the model')
     parser.add_argument('--sampler_name', type=str, choices=["Euler", "Euler A", "DPM++", "PNDM", "DDIM_Cog", "DDIM_Origin"], default='DDIM_Origin', help='Choose the sampler')
-    parser.add_argument('--transformer_path', type=str, default='checkpoints/crosstransformer', help='Path to the pretrained transformer model')
+    parser.add_argument('--transformer_path', type=str, default='checkpoints/TrajectoryCrafter/crosstransformer', help='Path to the pretrained transformer model')
     parser.add_argument('--sample_size', type=int, nargs=2, default=[384, 672], help='Sample size as [height, width]')
     parser.add_argument('--diffusion_guidance_scale', type=float, default=6.0, help='Guidance scale for inference')
     parser.add_argument('--diffusion_inference_steps', type=int, default=50, help='Number of inference steps')
@@ -42,9 +42,9 @@ def get_parser():
     parser.add_argument('--refine_prompt', type=str, default=". The video is of high quality, and the view is very clear. High quality, masterpiece, best quality, highres, ultra-detailed, fantastic.", help='Prompt for video generation')
 
     ## depth
-    parser.add_argument('--unet_path', type=str, default='checkpoints/depthcrafter/ckpt', help='Path to the UNet model')
+    parser.add_argument('--unet_path', type=str, default='checkpoints/DepthCrafter', help='Path to the UNet model')
     parser.add_argument('--pre_train_path_vda', type=str, default='checkpoints/video_depth_anything_vitl.pth', help='Path to the pre-trained model')
-    parser.add_argument('--pre_train_path', type=str, default='checkpoints/depthcrafter/stable-video-diffusion-img2vid-xt', help='Path to the pre-trained model')
+    parser.add_argument('--pre_train_path', type=str, default='checkpoints/stable-video-diffusion-img2vid-xt', help='Path to the pre-trained model')
     parser.add_argument('--cpu_offload', type=str, default='model', help='CPU offload strategy')
     parser.add_argument('--depth_inference_steps', type=int, default=5, help='Number of inference steps')
     parser.add_argument('--depth_guidance_scale', type=float, default=1.0, help='Guidance scale for inference')

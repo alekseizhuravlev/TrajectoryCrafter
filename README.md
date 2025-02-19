@@ -59,10 +59,21 @@ pip install -r requirements.txt
 ```
 
 ### 3. Download pretrained models
+Download the following models using git-lfs or [hf_download](https://huggingface.co/docs/huggingface_hub/guides/download):
 ```bash
+# sudo apt install git-lfs
 mkdir -p checkpoints/
-wget https://download.europe.naverlabs.com/ComputerVision/DUSt3R/DUSt3R_ViTLarge_BaseDecoder_512_dpt.pth -P checkpoints/
-
+cd checkpoints
+## our pretrained model
+git clone https://huggingface.co/TrajectoryCrafter/TrajectoryCrafter
+## depth estimation model
+git clone https://huggingface.co/tencent/DepthCrafter
+git clone https://huggingface.co/stabilityai/stable-video-diffusion-img2vid
+## 3D VAE
+git clone https://huggingface.co/alibaba-pai/CogVideoX-Fun-V1.1-5b-InP
+## caption model
+git clone https://huggingface.co/Salesforce/blip2-opt-2.7b
+cd ..
 ```
 
 ## 💫 Inference 
