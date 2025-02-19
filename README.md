@@ -87,7 +87,7 @@ Run [inference.py](./inference.py) using the following script. Please refer to t
 ### 2. Local gradio demo
 
 ```bash
-  python gradio_app.py 
+  python gradio_app.py --'Server IP address'
 ```
 
 

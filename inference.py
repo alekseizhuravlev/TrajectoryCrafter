@@ -51,6 +51,7 @@ def get_parser():
     parser.add_argument('--window_size', type=int, default=110, help='Window size for processing')
     parser.add_argument('--overlap', type=int, default=25, help='Overlap size for processing')
     parser.add_argument('--max_res', type=int, default=1024, help='Maximum resolution for processing')
+    parser.add_argument('--server_name', type=str, help='Server IP address')
 
     return parser
 

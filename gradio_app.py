@@ -7,6 +7,9 @@ import gradio as gr
 import random
 from inference import get_parser
 from datetime import datetime
+import argparse
+
+# 解析命令行参数
 
 traj_examples = [
     ['0 -35; 0 0; 0 -0.1'],
@@ -63,11 +66,11 @@ def show_traj(mode):
     elif mode == 'Reset':
         return gr.update(value='0; 0; 0; 0; 0',visible=False), gr.update(visible=False)
 
-def viewcrafter_demo(opts):
+def trajcrafter_demo(opts):
     css = """#input_img {max-width: 1024px !important} #output_vid {max-width: 1024px; max-height:576px} #random_button {max-width: 100px !important}"""
     image2video = TrajCrafter(opts,gradio=True)
     # image2video.run_both = spaces.GPU(image2video.run_both, duration=290) # fixme
-    with gr.Blocks(analytics_enabled=False, css=css) as viewcrafter_iface:
+    with gr.Blocks(analytics_enabled=False, css=css) as trajcrafter_iface:
         gr.Markdown("<div align='center'> <h1> TrajectoryCrafter: Generative View Trajectory Redirection for Monocular Videos </span> </h1>")
         #             #   <h2 style='font-weight: 450; font-size: 1rem; margin: 0rem'>\
         #             #  <a style='font-size:18px;color: #000000' href='https://arxiv.org/abs/2409.02048'> [ArXiv] </a>\
@@ -210,11 +213,12 @@ def viewcrafter_demo(opts):
                       fn = show_traj
                       )
 
-    return viewcrafter_iface
+    return trajcrafter_iface
 
 
-viewcrafter_iface = viewcrafter_demo(opts)
-viewcrafter_iface.queue(max_size=10)
-# viewcrafter_iface.launch() #fixme
-viewcrafter_iface.launch(server_name='10.13.10.45', max_threads=10,debug=True)
+trajcrafter_iface = trajcrafter_demo(args)
+trajcrafter_iface.queue(max_size=10)
+trajcrafter_iface.launch(server_name=args.server_name, max_threads=10, debug=True)
+
+
 
