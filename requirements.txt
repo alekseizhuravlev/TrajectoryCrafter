@@ -3,7 +3,6 @@ einops
 safetensors
 timm
 tomesd
-torch==2.4.0
 torchdiffeq
 torchsde
 xformers

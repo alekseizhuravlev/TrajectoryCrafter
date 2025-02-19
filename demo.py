@@ -254,7 +254,8 @@ class TrajCrafter:
         return pose_s, pose_t, K
 
     def setup_diffusion(self,opts):
-        transformer = CrossTransformer3DModel.from_pretrained_cus(opts.transformer_path).to(opts.weight_dtype)
+        # transformer = CrossTransformer3DModel.from_pretrained_cus(opts.transformer_path).to(opts.weight_dtype)
+        transformer = CrossTransformer3DModel.from_pretrained(opts.transformer_path).to(opts.weight_dtype)
         # transformer = transformer.to(opts.weight_dtype)
         vae = AutoencoderKLCogVideoX.from_pretrained(
             opts.model_name, 
