@@ -17,6 +17,7 @@ def get_parser():
     parser.add_argument('--fps', type=int, default=10, help='Frames per second for saved video')
     parser.add_argument('--stride', type=int, default=1, help='Sampling stride for input video')
     parser.add_argument('--blip_path',type=str,default="./checkpoints/blip2-opt-2.7b")
+    parser.add_argument('--server_name', type=str, help='Server IP address')
 
     ## render
     parser.add_argument('--radius_scale',type=float,default=1.0 )
@@ -33,7 +34,7 @@ def get_parser():
     parser.add_argument('--low_gpu_memory_mode', type=bool, default=False, help='Enable low GPU memory mode')
     parser.add_argument('--model_name', type=str, default='checkpoints/CogVideoX-Fun-V1.1-5b-InP', help='Path to the model')
     parser.add_argument('--sampler_name', type=str, choices=["Euler", "Euler A", "DPM++", "PNDM", "DDIM_Cog", "DDIM_Origin"], default='DDIM_Origin', help='Choose the sampler')
-    parser.add_argument('--transformer_path', type=str, default='checkpoints/TrajectoryCrafter/crosstransformer', help='Path to the pretrained transformer model')
+    parser.add_argument('--transformer_path', type=str, default='checkpoints/TrajectoryCrafter', help='Path to the pretrained transformer model')
     parser.add_argument('--sample_size', type=int, nargs=2, default=[384, 672], help='Sample size as [height, width]')
     parser.add_argument('--diffusion_guidance_scale', type=float, default=6.0, help='Guidance scale for inference')
     parser.add_argument('--diffusion_inference_steps', type=int, default=50, help='Number of inference steps')
@@ -51,7 +52,6 @@ def get_parser():
     parser.add_argument('--window_size', type=int, default=110, help='Window size for processing')
     parser.add_argument('--overlap', type=int, default=25, help='Overlap size for processing')
     parser.add_argument('--max_res', type=int, default=1024, help='Maximum resolution for processing')
-    parser.add_argument('--server_name', type=str, help='Server IP address')
 
     return parser
 
