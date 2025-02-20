@@ -12,19 +12,18 @@ import argparse
 # 解析命令行参数
 
 traj_examples = [
-    ['0 -35; 0 0; 0 -0.1'],
-    ['0 -3 -15 -20 -17 -5 0; 0 -2 -5 -10 -8 -5 0 2 5 3 0; 0 0'],
-    ['0 3 10 20 17 10 0; 0 -2 -8 -6 0 2 5 3 0; 0 -0.02 -0.09 -0.16 -0.09 0'],
-    ['0 30; 0 -1 -5 -4 0 1 5 4 0; 0 -0.2'],
+    ['20; -30; 0.3; 0; 0'],
+    ['0; 0; -0.3; -2; 2'],
 ]
 
+# inputs=[i2v_input_video, i2v_stride, i2v_center_scale, i2v_pose, i2v_steps, i2v_seed],
 
 img_examples = [
-    ['test/videos/0-NNvgaTcVzAG0-r.mp4',2],
-    ['test/videos/3042471-hd_1280_720_30fps.mp4',2],
-    ['test/videos/part-2-3.mp4',2],
-    ['test/videos/pika8.mp4',2],
-    ['test/videos/UST-fn-RvhJwMR5S.mp4',2],
+    ['test/videos/0-NNvgaTcVzAG0-r.mp4',2,1,'0; -30; 0.5; -2; 0',50,43],
+    ['test/videos/tUfDESZsQFhdDW9S.mp4',2,1,'0; 30; -0.4; 2; 0',50,43],
+    ['test/videos/part-2-3.mp4',2,1,'20; 40; 0.5; 2; 0',50,43],
+    ['test/videos/p7.mp4',2,1,'0; -50; 0.3; 0; 0',50,43],
+    ['test/videos/UST-fn-RvhJwMR5S.mp4',2,1,'0; -35; 0.4; 0; 0',50,43],
 ]
 
 max_seed = 2 ** 31
@@ -267,8 +266,10 @@ def trajcrafter_demo(opts):
                       fn = show_traj
                       )
 
+        
         gr.Examples(examples=img_examples,
-            inputs=[i2v_input_video,i2v_stride],
+            # inputs=[i2v_input_video,i2v_stride],
+            inputs=[i2v_input_video, i2v_stride, i2v_center_scale, i2v_pose, i2v_steps, i2v_seed],
         )       
 
     return trajcrafter_iface
