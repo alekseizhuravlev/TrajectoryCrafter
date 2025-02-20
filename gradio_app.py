@@ -20,11 +20,11 @@ traj_examples = [
 
 
 img_examples = [
-    ['test/images/boy.png',0,1],
-    ['test/images/car.jpeg',5,1],
-    ['test/images/fruit.jpg',5,1],
-    ['test/images/room.png',10,1],
-    ['test/images/castle.png',-4,1],
+    ['test/videos/0-NNvgaTcVzAG0-r.mp4',2],
+    ['test/videos/3042471-hd_1280_720_30fps.mp4',2],
+    ['test/videos/part-2-3.mp4',2],
+    ['test/videos/pika8.mp4',2],
+    ['test/videos/UST-fn-RvhJwMR5S.mp4',2],
 ]
 
 max_seed = 2 ** 31
@@ -109,7 +109,7 @@ def trajcrafter_demo(opts):
 
         with gr.Row():
             with gr.Row():
-                # i2v_elevation = gr.Slider(minimum=-45, maximum=45, step=1, elem_id="elevation", label="elevation", value=5)
+                i2v_stride = gr.Slider(minimum=1, maximum=3, step=1, elem_id="stride", label="Stride", value=1)
                 i2v_center_scale = gr.Slider(minimum=0.1, maximum=2, step=0.1, elem_id="i2v_center_scale",
                                              label="center_scale", value=1)
                 i2v_steps = gr.Slider(minimum=1, maximum=50, step=1, elem_id="i2v_steps", label="Sampling steps",
@@ -213,13 +213,7 @@ def trajcrafter_demo(opts):
 
 
 
-        # gr.Examples(examples=img_examples,
-        #     inputs=[i2v_input_image,i2v_elevation, i2v_center_scale,],
-        #     # examples_per_page=6
-        # )            
-
-
-        i2v_end_btn.click(inputs=[i2v_input_video, i2v_center_scale, i2v_pose, i2v_steps, i2v_seed],
+        i2v_end_btn.click(inputs=[i2v_input_video, i2v_stride, i2v_center_scale, i2v_pose, i2v_steps, i2v_seed],
                         outputs=[i2v_output_video],
                         fn = image2video.run_gradio
         )
@@ -272,6 +266,10 @@ def trajcrafter_demo(opts):
                       outputs=[i2v_pose,i2v_egs],
                       fn = show_traj
                       )
+
+        gr.Examples(examples=img_examples,
+            inputs=[i2v_input_video,i2v_stride],
+        )       
 
     return trajcrafter_iface
 

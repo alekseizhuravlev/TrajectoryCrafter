@@ -292,8 +292,8 @@ class TrajCrafter:
         else:
             self.pipeline.enable_model_cpu_offload()
 
-    def run_gradio(self,input_video, radius_scale, pose, steps, seed):
-        frames = read_video_frames(input_video,self.opts.video_length,self.opts.stride,self.opts.max_res)
+    def run_gradio(self,input_video, stride, radius_scale, pose, steps, seed):
+        frames = read_video_frames(input_video, self.opts.video_length, stride,self.opts.max_res)
         prompt = self.get_caption(self.opts,frames[self.opts.video_length//2])
         # depths= self.depth_estimater.infer(frames, opts.near, opts.far).to(opts.device)
         depths= self.depth_estimater.infer(frames, self.opts.near, self.opts.far, self.opts.depth_inference_steps, self.opts.depth_guidance_scale, window_size=self.opts.window_size, overlap=self.opts.overlap).to(self.opts.device)
