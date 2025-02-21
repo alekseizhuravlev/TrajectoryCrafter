@@ -28,7 +28,7 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
   </tr>
   <tr>
   <td>
-    <img src=assets/a3.gif style="width: 100%; height: auto;">
+    <img src=assets/a5.gif style="width: 100%; height: auto;">
   </td>
   </tr> 
   <tr>
@@ -87,13 +87,12 @@ Run [inference.py](./inference.py) using the following script. Please refer to t
 ### 2. Local gradio demo
 
 ```bash
-  python gradio_app.py --'Server IP address'
+  python gradio_app.py
 ```
 
+##  📢 Limitations
+Our model excels at handling videos with well-defined objects and clear motion, as demonstrated in the demo videos. However, since it is built upon a pretrained video diffusion model, it may struggle with complex cases that go beyond the generation capabilities of the base model.
 
-<a name="disc"></a>
-## 📢 Disclaimer
-⚠️This is an open-source research exploration rather than a commercial product, so it may not meet all your expectations. Due to the variability of the video diffusion model, you may encounter failure cases. Try using different seeds and adjusting the render configs if the results are not desirable.
-Users are free to create videos using this tool, but they must comply with local laws and use it responsibly. The developers do not assume any responsibility for potential misuse.
-****
+## 🤗 Acknowledgements
+Many thanks to these open-source projects: [CogVideo-Fun](https://github.com/aigc-apps/CogVideoX-Fun), [ViewCrafter](https://github.com/Drexubery/ViewCrafter) and [DepthCrafter](https://github.com/Tencent/DepthCrafter).
 
