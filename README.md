@@ -2,10 +2,10 @@
 <div align="center">
 <img src='assets/title.png' style="height:100px"></img>
 
- <a href='https://arxiv.org/abs/2409.02048'><img src='https://img.shields.io/badge/arXiv-2409.02048-b31b1b.svg'></a> &nbsp;
- <a href='https://drexubery.github.io/ViewCrafter/'><img src='https://img.shields.io/badge/Project-Page-Green'></a> &nbsp;
+ <a href=''><img src='https://img.shields.io/badge/arXiv-2409.02048-b31b1b.svg'></a> &nbsp;
+ <a href='https://trajectorycrafter.github.io/webpage/'><img src='https://img.shields.io/badge/Project-Page-Green'></a> &nbsp;
  <a href='https://www.youtube.com/watch?v=dQtHFgyrids'><img src='https://img.shields.io/badge/Youtube-Video-b31b1b.svg'></a>&nbsp;
- <a href='https://huggingface.co/spaces/Doubiiu/ViewCrafter'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a> &nbsp;
+ <a href=''><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a> &nbsp;
 
 
 </div>
