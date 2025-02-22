@@ -136,7 +136,7 @@ def trajcrafter_demo(opts):
                                            visible=False)
                         with gr.Column(visible=False) as i2v_egs:
                             gr.Markdown(
-                                "<div align='left' style='font-size:18px;color: #000000'>Please refer to the <a href='https://github.com/Drexubery/ViewCrafter/blob/main/docs/gradio_tutorial.md' target='_blank'>tutorial</a> for customizing camera trajectory.</div>")
+                                "<div align='left' style='font-size:18px;color: #000000'>Please refer to <a href='https://github.com/TrajectoryCrafter/TrajectoryCrafter/blob/main/docs/config_help.md' target='_blank'>tutorial</a> for customizing camera trajectory.</div>")
                             gr.Examples(examples=traj_examples,
                                         inputs=[i2v_pose],
                                         )
