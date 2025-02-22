@@ -86,12 +86,15 @@ def trajcrafter_demo(opts):
     image2video = TrajCrafter(opts,gradio=True)
     # image2video.run_both = spaces.GPU(image2video.run_both, duration=290) # fixme
     with gr.Blocks(analytics_enabled=False, css=css) as trajcrafter_iface:
-        gr.Markdown("<div align='center'> <h1> TrajectoryCrafter: Redirecting View Trajectory for Monocular Videos via Diffusion Models </span> </h1>")
-        #             #   <h2 style='font-weight: 450; font-size: 1rem; margin: 0rem'>\
-        #             #  <a style='font-size:18px;color: #000000' href='https://arxiv.org/abs/2409.02048'> [ArXiv] </a>\
-        #             #  <a style='font-size:18px;color: #000000' href='https://drexubery.github.io/ViewCrafter/'> [Project Page] </a>\
-        #             #  <a style='font-size:18px;color: #FF5DB0' href='https://github.com/Drexubery/ViewCrafter'> [Github] </a>\
-        #             #  <a style='font-size:18px;color: #000000' href='https://www.youtube.com/watch?v=WGIEmu9eXmU'> [Video] </a> </div>")
+        gr.Markdown("""
+            <div align='center'>
+                <h1>TrajectoryCrafter: Redirecting View Trajectory for Monocular Videos via Diffusion Models</h1>
+                <a style='font-size:18px;color: #FF5DB0' href='https://github.com/TrajectoryCrafter/TrajectoryCrafter'>[Github]</a>
+                <a style='font-size:18px;color: #000000' href='https://arxiv.org/abs/2409.02048'>[ArXiv]</a>
+                <a style='font-size:18px;color: #000000' href='https://trajectorycrafter.github.io/'>[Project Page]</a>
+                <a style='font-size:18px;color: #000000' href='https://www.youtube.com/watch?v=dQtHFgyrids'>[Video]</a>
+            </div>
+        """)
 
 
         with gr.Row(equal_height=True):
