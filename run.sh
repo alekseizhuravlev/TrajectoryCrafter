@@ -8,5 +8,5 @@ python inference.py \
     --camera 'target' \
     --mode 'gradual' \
     --mask \
-    --target_pose 0 -50 0.3 0 0 \
+    --target_pose 0 -30 0.3 0 0 \
     --traj_txt 'test/trajs/loop2.txt' \

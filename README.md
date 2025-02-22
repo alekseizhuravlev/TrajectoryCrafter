@@ -80,7 +80,7 @@ cd ..
 ## 💫 Inference 
 ### 1. Command line
 
-Run [inference.py](./inference.py) using the following script. Please refer to the [configuration document](docs/config_help.md) and [render document](docs/render_help.md) to set up inference parameters and camera trajectory. 
+Run [inference.py](./inference.py) using the following script. Please refer to the [configuration document](docs/config_help.md) to set up inference parameters and camera trajectory. 
 ```bash
   sh run.sh
 ```
