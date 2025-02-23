@@ -60,15 +60,15 @@ pip install -r requirements.txt
 ```
 
 ### 3. Download pretrained models
-Download the pretrained models through huggingface:
+Download the pretrained models using HuggingFace (recommended)
 ```bash
-# Login Huggingface first
-sh downlod/download_hf.sh 
+# Login HuggingFace first
+sh download/download_hf.sh 
 ```
 
-Or using git-lfs:
+Use git-lfs to download the pretrained models if you encounter problems connecting to HuggingFace
 ```bash
-sh downlod/download_lfs.sh 
+sh download/download_lfs.sh 
 ```
 
 ## 💫 Inference 
