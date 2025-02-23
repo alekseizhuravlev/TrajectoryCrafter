@@ -5,7 +5,7 @@
  <!-- <a href=''><img src='https://img.shields.io/badge/arXiv-2409.02048-b31b1b.svg'></a> &nbsp; -->
  <a href='https://trajectorycrafter.github.io/'><img src='https://img.shields.io/badge/Project-Page-Green'></a> &nbsp;
  <a href='https://www.youtube.com/watch?v=dQtHFgyrids'><img src='https://img.shields.io/badge/Youtube-Video-b31b1b.svg'></a>&nbsp;
- <!-- <a href=''><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a> &nbsp; -->
+ <a href='https://huggingface.co/spaces/Doubiiu/TrajectoryCrafter'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a> &nbsp;
 
 
 </div>
