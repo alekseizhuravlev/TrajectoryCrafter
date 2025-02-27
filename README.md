@@ -1,4 +1,4 @@
-## ___***TrajectoryCrafter: Redirecting View Trajectory for Monocular Videos via Diffusion Models***___
+## ___***TrajectoryCrafter: Redirecting Camera Trajectory for Monocular Videos via Diffusion Models***___
 <div align="center">
 <img src='assets/title.png' style="height:100px"></img>
 
