@@ -1,4 +1,3 @@
-
 python inference.py \
     --video_path './test/videos/p7.mp4' \
     --stride 2 \
