@@ -4,8 +4,8 @@ import numpy as np
 import torch
 
 from diffusers.training_utils import set_seed
-from extern.depthcrafter.depth_crafter_ppl import DepthCrafterPipeline
-from extern.depthcrafter.unet import DiffusersUNetSpatioTemporalConditionModelDepthCrafter
+from models.depth_crafter_ppl import DepthCrafterPipeline
+from models.unet import DiffusersUNetSpatioTemporalConditionModelDepthCrafter
 
 
 class DepthCrafterDemo:

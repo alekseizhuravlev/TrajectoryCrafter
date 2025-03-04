@@ -1,8 +1,7 @@
 import gc
 import os
 import torch
-from extern.depthcrafter.infer import DepthCrafterDemo
-# from extern.video_depth_anything.vdademo import VDADemo
+from models.infer import DepthCrafterDemo
 import numpy as np
 import torch
 from transformers import T5EncoderModel
