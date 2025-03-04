@@ -49,7 +49,7 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 
 ### 1. Clone TrajectoryCrafter
 ```bash
-git clone https://github.com/TrajectoryCrafter/TrajectoryCrafter.git
+git clone --recursive https://github.com/TrajectoryCrafter/TrajectoryCrafter.git
 cd TrajectoryCrafter
 ```
 ### 2. Setup environments
