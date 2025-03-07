@@ -14,7 +14,8 @@
 
 ## 🔆 Introduction
 
-- __[2024-02-23]__: 🔥🔥 Launch the project page and update the arXiv preprint.
+- __[2024-03-10]__: 🔥🔥 Update the arXiv preprint.
+- __[2024-02-23]__: Launch the project page.
 - __[2024-02-18]__: Release pretrained models and inference code.
 
 TrajectoryCrafter can generate high-fidelity novel views from <strong>casually captured monocular video</strong>, while also supporting highly precise pose control. Below shows some examples:
