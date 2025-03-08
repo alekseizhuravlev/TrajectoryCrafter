@@ -14,7 +14,7 @@ class DepthCrafterDemo:
         unet_path: str,
         pre_train_path: str,
         cpu_offload: str = "model",
-        device: str = "cuda:0"
+        device: str = "cuda:0",
     ):
         unet = DiffusersUNetSpatioTemporalConditionModelDepthCrafter.from_pretrained(
             unet_path,
@@ -82,10 +82,10 @@ class DepthCrafterDemo:
         # visualize the depth map and save the results
         # vis = vis_sequence_depth(res)
         # save the depth map and visualization with the target FPS
-        depths = torch.from_numpy(depths).unsqueeze(1) # 49 576 1024 ->
+        depths = torch.from_numpy(depths).unsqueeze(1)  # 49 576 1024 ->
         depths *= 3900  # compatible with da output
-        depths[depths < 1e-5] = 1e-5  
-        depths = 10000. / depths
+        depths[depths < 1e-5] = 1e-5
+        depths = 10000.0 / depths
         depths = depths.clip(near, far)
 
         return depths

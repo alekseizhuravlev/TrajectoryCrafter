@@ -2,7 +2,9 @@ from typing import Union, Tuple
 
 import torch
 from diffusers import UNetSpatioTemporalConditionModel
-from diffusers.models.unets.unet_spatio_temporal_condition import UNetSpatioTemporalConditionOutput
+from diffusers.models.unets.unet_spatio_temporal_condition import (
+    UNetSpatioTemporalConditionOutput,
+)
 
 
 class DiffusersUNetSpatioTemporalConditionModelDepthCrafter(

@@ -26,14 +26,23 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.utils import is_torch_version, logging
 from diffusers.utils.torch_utils import maybe_allow_in_graph
 from diffusers.models.attention import Attention, FeedForward
-from diffusers.models.attention_processor import AttentionProcessor, CogVideoXAttnProcessor2_0, FusedCogVideoXAttnProcessor2_0
-from diffusers.models.embeddings import TimestepEmbedding, Timesteps, get_3d_sincos_pos_embed
+from diffusers.models.attention_processor import (
+    AttentionProcessor,
+    CogVideoXAttnProcessor2_0,
+    FusedCogVideoXAttnProcessor2_0,
+)
+from diffusers.models.embeddings import (
+    TimestepEmbedding,
+    Timesteps,
+    get_3d_sincos_pos_embed,
+)
 from diffusers.models.modeling_outputs import Transformer2DModelOutput
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.models.normalization import AdaLayerNorm, CogVideoXLayerNormZero
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+
 
 class CogVideoXPatchEmbed(nn.Module):
     def __init__(
@@ -48,7 +57,11 @@ class CogVideoXPatchEmbed(nn.Module):
         self.patch_size = patch_size
 
         self.proj = nn.Conv2d(
-            in_channels, embed_dim, kernel_size=(patch_size, patch_size), stride=patch_size, bias=bias
+            in_channels,
+            embed_dim,
+            kernel_size=(patch_size, patch_size),
+            stride=patch_size,
+            bias=bias,
         )
         self.text_proj = nn.Linear(text_embed_dim, embed_dim)
 
@@ -66,13 +79,18 @@ class CogVideoXPatchEmbed(nn.Module):
         image_embeds = image_embeds.reshape(-1, channels, height, width)
         image_embeds = self.proj(image_embeds)
         image_embeds = image_embeds.view(batch, num_frames, *image_embeds.shape[1:])
-        image_embeds = image_embeds.flatten(3).transpose(2, 3)  # [batch, num_frames, height x width, channels]
-        image_embeds = image_embeds.flatten(1, 2)  # [batch, num_frames x height x width, channels]
+        image_embeds = image_embeds.flatten(3).transpose(
+            2, 3
+        )  # [batch, num_frames, height x width, channels]
+        image_embeds = image_embeds.flatten(
+            1, 2
+        )  # [batch, num_frames x height x width, channels]
 
         embeds = torch.cat(
             [text_embeds, image_embeds], dim=1
         ).contiguous()  # [batch, seq_length + num_frames x height x width, channels]
         return embeds
+
 
 class RefPatchEmbed(nn.Module):
     def __init__(
@@ -86,7 +104,11 @@ class RefPatchEmbed(nn.Module):
         self.patch_size = patch_size
 
         self.proj = nn.Conv2d(
-            in_channels, embed_dim, kernel_size=(patch_size, patch_size), stride=patch_size, bias=bias
+            in_channels,
+            embed_dim,
+            kernel_size=(patch_size, patch_size),
+            stride=patch_size,
+            bias=bias,
         )
 
     def forward(self, image_embeds: torch.Tensor):
@@ -99,9 +121,14 @@ class RefPatchEmbed(nn.Module):
         image_embeds = image_embeds.reshape(-1, channels, height, width)
         image_embeds = self.proj(image_embeds)
         image_embeds = image_embeds.view(batch, num_frames, *image_embeds.shape[1:])
-        image_embeds = image_embeds.flatten(3).transpose(2, 3)  # [batch, num_frames, height x width, channels]
-        image_embeds = image_embeds.flatten(1, 2)  # [batch, num_frames x height x width, channels]
+        image_embeds = image_embeds.flatten(3).transpose(
+            2, 3
+        )  # [batch, num_frames, height x width, channels]
+        image_embeds = image_embeds.flatten(
+            1, 2
+        )  # [batch, num_frames x height x width, channels]
         return image_embeds
+
 
 @maybe_allow_in_graph
 class CogVideoXBlock(nn.Module):
@@ -159,7 +186,9 @@ class CogVideoXBlock(nn.Module):
         super().__init__()
 
         # 1. Self Attention
-        self.norm1 = CogVideoXLayerNormZero(time_embed_dim, dim, norm_elementwise_affine, norm_eps, bias=True)
+        self.norm1 = CogVideoXLayerNormZero(
+            time_embed_dim, dim, norm_elementwise_affine, norm_eps, bias=True
+        )
 
         self.attn1 = Attention(
             query_dim=dim,
@@ -173,7 +202,9 @@ class CogVideoXBlock(nn.Module):
         )
 
         # 2. Feed Forward
-        self.norm2 = CogVideoXLayerNormZero(time_embed_dim, dim, norm_elementwise_affine, norm_eps, bias=True)
+        self.norm2 = CogVideoXLayerNormZero(
+            time_embed_dim, dim, norm_elementwise_affine, norm_eps, bias=True
+        )
 
         self.ff = FeedForward(
             dim,
@@ -194,8 +225,8 @@ class CogVideoXBlock(nn.Module):
         text_seq_length = encoder_hidden_states.size(1)
 
         # norm & modulate
-        norm_hidden_states, norm_encoder_hidden_states, gate_msa, enc_gate_msa = self.norm1(
-            hidden_states, encoder_hidden_states, temb
+        norm_hidden_states, norm_encoder_hidden_states, gate_msa, enc_gate_msa = (
+            self.norm1(hidden_states, encoder_hidden_states, temb)
         )
 
         # attention
@@ -206,19 +237,25 @@ class CogVideoXBlock(nn.Module):
         )
 
         hidden_states = hidden_states + gate_msa * attn_hidden_states
-        encoder_hidden_states = encoder_hidden_states + enc_gate_msa * attn_encoder_hidden_states
+        encoder_hidden_states = (
+            encoder_hidden_states + enc_gate_msa * attn_encoder_hidden_states
+        )
 
         # norm & modulate
-        norm_hidden_states, norm_encoder_hidden_states, gate_ff, enc_gate_ff = self.norm2(
-            hidden_states, encoder_hidden_states, temb
+        norm_hidden_states, norm_encoder_hidden_states, gate_ff, enc_gate_ff = (
+            self.norm2(hidden_states, encoder_hidden_states, temb)
         )
 
         # feed-forward
-        norm_hidden_states = torch.cat([norm_encoder_hidden_states, norm_hidden_states], dim=1)
+        norm_hidden_states = torch.cat(
+            [norm_encoder_hidden_states, norm_hidden_states], dim=1
+        )
         ff_output = self.ff(norm_hidden_states)
 
         hidden_states = hidden_states + gate_ff * ff_output[:, text_seq_length:]
-        encoder_hidden_states = encoder_hidden_states + enc_gate_ff * ff_output[:, :text_seq_length]
+        encoder_hidden_states = (
+            encoder_hidden_states + enc_gate_ff * ff_output[:, :text_seq_length]
+        )
 
         return hidden_states, encoder_hidden_states
 
@@ -239,6 +276,7 @@ def reshape_tensor(x, heads):
     x = x.transpose(1, 2)
     x = x.reshape(bs, heads, length, -1)
     return x
+
 
 class PerceiverCrossAttention(nn.Module):
     """
@@ -272,7 +310,9 @@ class PerceiverCrossAttention(nn.Module):
 
         # Linear transformations to produce queries, keys, and values
         self.to_q = nn.Linear(dim, inner_dim, bias=False)
-        self.to_kv = nn.Linear(dim if kv_dim is None else kv_dim, inner_dim * 2, bias=False)
+        self.to_kv = nn.Linear(
+            dim if kv_dim is None else kv_dim, inner_dim * 2, bias=False
+        )
         self.to_out = nn.Linear(inner_dim, dim, bias=False)
 
     def forward(self, x, latents):
@@ -308,7 +348,9 @@ class PerceiverCrossAttention(nn.Module):
 
         # Compute attention weights
         scale = 1 / math.sqrt(math.sqrt(self.dim_head))
-        weight = (q * scale) @ (k * scale).transpose(-2, -1)  # More stable scaling than post-division
+        weight = (q * scale) @ (k * scale).transpose(
+            -2, -1
+        )  # More stable scaling than post-division
         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
 
         # Compute the output via weighted combination of values
@@ -415,15 +457,21 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
 
         post_patch_height = sample_height // patch_size
         post_patch_width = sample_width // patch_size
-        post_time_compression_frames = (sample_frames - 1) // temporal_compression_ratio + 1
-        self.num_patches = post_patch_height * post_patch_width * post_time_compression_frames
+        post_time_compression_frames = (
+            sample_frames - 1
+        ) // temporal_compression_ratio + 1
+        self.num_patches = (
+            post_patch_height * post_patch_width * post_time_compression_frames
+        )
         self.post_patch_height = post_patch_height
         self.post_patch_width = post_patch_width
         self.post_time_compression_frames = post_time_compression_frames
         self.patch_size = patch_size
 
         # 1. Patch embedding
-        self.patch_embed = CogVideoXPatchEmbed(patch_size, in_channels, inner_dim, text_embed_dim, bias=True)
+        self.patch_embed = CogVideoXPatchEmbed(
+            patch_size, in_channels, inner_dim, text_embed_dim, bias=True
+        )
         self.embedding_dropout = nn.Dropout(dropout)
 
         # 2. 3D positional embeddings
@@ -435,13 +483,17 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             temporal_interpolation_scale,
         )
         spatial_pos_embedding = torch.from_numpy(spatial_pos_embedding).flatten(0, 1)
-        pos_embedding = torch.zeros(1, max_text_seq_length + self.num_patches, inner_dim, requires_grad=False)
+        pos_embedding = torch.zeros(
+            1, max_text_seq_length + self.num_patches, inner_dim, requires_grad=False
+        )
         pos_embedding.data[:, max_text_seq_length:].copy_(spatial_pos_embedding)
         self.register_buffer("pos_embedding", pos_embedding, persistent=False)
 
         # 3. Time embeddings
         self.time_proj = Timesteps(inner_dim, flip_sin_to_cos, freq_shift)
-        self.time_embedding = TimestepEmbedding(inner_dim, time_embed_dim, timestep_activation_fn)
+        self.time_embedding = TimestepEmbedding(
+            inner_dim, time_embed_dim, timestep_activation_fn
+        )
 
         # 4. Define spatio-temporal transformers blocks
         self.transformer_blocks = nn.ModuleList(
@@ -483,7 +535,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             self.cross_attn_dim_head = cross_attn_dim_head
             self.cross_attn_num_heads = cross_attn_num_heads
             self.cross_attn_kv_dim = None
-            self.ref_patch_embed = RefPatchEmbed(patch_size, cross_attn_in_channels, inner_dim, bias=True)
+            self.ref_patch_embed = RefPatchEmbed(
+                patch_size, cross_attn_in_channels, inner_dim, bias=True
+            )
             self._init_cross_inputs()
 
     def _init_cross_inputs(self):
@@ -515,7 +569,11 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         # set recursively
         processors = {}
 
-        def fn_recursive_add_processors(name: str, module: torch.nn.Module, processors: Dict[str, AttentionProcessor]):
+        def fn_recursive_add_processors(
+            name: str,
+            module: torch.nn.Module,
+            processors: Dict[str, AttentionProcessor],
+        ):
             if hasattr(module, "get_processor"):
                 processors[f"{name}.processor"] = module.get_processor()
 
@@ -530,7 +588,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         return processors
 
     # Copied from diffusers.models.unets.unet_2d_condition.UNet2DConditionModel.set_attn_processor
-    def set_attn_processor(self, processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]]):
+    def set_attn_processor(
+        self, processor: Union[AttentionProcessor, Dict[str, AttentionProcessor]]
+    ):
         r"""
         Sets the attention processor to use to compute attention.
 
@@ -580,7 +640,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
 
         for _, attn_processor in self.attn_processors.items():
             if "Added" in str(attn_processor.__class__.__name__):
-                raise ValueError("`fuse_qkv_projections()` is not supported for models having added KV projections.")
+                raise ValueError(
+                    "`fuse_qkv_projections()` is not supported for models having added KV projections."
+                )
 
         self.original_attn_processors = self.attn_processors
 
@@ -606,11 +668,11 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
 
     def forward(
         self,
-        hidden_states: torch.Tensor, #noise
-        encoder_hidden_states: torch.Tensor, #text
+        hidden_states: torch.Tensor,  # noise
+        encoder_hidden_states: torch.Tensor,  # text
         timestep: Union[int, float, torch.LongTensor],
         timestep_cond: Optional[torch.Tensor] = None,
-        inpaint_latents: Optional[torch.Tensor] = None, #condition
+        inpaint_latents: Optional[torch.Tensor] = None,  # condition
         cross_latents: Optional[torch.Tensor] = None,
         image_rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         return_dict: bool = True,
@@ -641,11 +703,30 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             # pos_embeds = self.pos_embedding[:, : text_seq_length + seq_length]
             pos_embeds = self.pos_embedding
             emb_size = hidden_states.size()[-1]
-            pos_embeds_without_text = pos_embeds[:, text_seq_length: ].view(1, self.post_time_compression_frames, self.post_patch_height, self.post_patch_width, emb_size)
+            pos_embeds_without_text = pos_embeds[:, text_seq_length:].view(
+                1,
+                self.post_time_compression_frames,
+                self.post_patch_height,
+                self.post_patch_width,
+                emb_size,
+            )
             pos_embeds_without_text = pos_embeds_without_text.permute([0, 4, 1, 2, 3])
-            pos_embeds_without_text = F.interpolate(pos_embeds_without_text,size=[self.post_time_compression_frames, height // self.config.patch_size, width // self.config.patch_size],mode='trilinear',align_corners=False)
-            pos_embeds_without_text = pos_embeds_without_text.permute([0, 2, 3, 4, 1]).view(1, -1, emb_size)
-            pos_embeds = torch.cat([pos_embeds[:, :text_seq_length], pos_embeds_without_text], dim = 1)
+            pos_embeds_without_text = F.interpolate(
+                pos_embeds_without_text,
+                size=[
+                    self.post_time_compression_frames,
+                    height // self.config.patch_size,
+                    width // self.config.patch_size,
+                ],
+                mode='trilinear',
+                align_corners=False,
+            )
+            pos_embeds_without_text = pos_embeds_without_text.permute(
+                [0, 2, 3, 4, 1]
+            ).view(1, -1, emb_size)
+            pos_embeds = torch.cat(
+                [pos_embeds[:, :text_seq_length], pos_embeds_without_text], dim=1
+            )
             pos_embeds = pos_embeds[:, : text_seq_length + seq_length]
             hidden_states = hidden_states + pos_embeds
             hidden_states = self.embedding_dropout(hidden_states)
@@ -665,14 +746,18 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
 
                     return custom_forward
 
-                ckpt_kwargs: Dict[str, Any] = {"use_reentrant": False} if is_torch_version(">=", "1.11.0") else {}
-                hidden_states, encoder_hidden_states = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(block),
-                    hidden_states,
-                    encoder_hidden_states,
-                    emb,
-                    image_rotary_emb,
-                    **ckpt_kwargs,
+                ckpt_kwargs: Dict[str, Any] = (
+                    {"use_reentrant": False} if is_torch_version(">=", "1.11.0") else {}
+                )
+                hidden_states, encoder_hidden_states = (
+                    torch.utils.checkpoint.checkpoint(
+                        create_custom_forward(block),
+                        hidden_states,
+                        encoder_hidden_states,
+                        emb,
+                        image_rotary_emb,
+                        **ckpt_kwargs,
+                    )
                 )
             else:
                 hidden_states, encoder_hidden_states = block(
@@ -683,7 +768,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                 )
             if self.is_train_cross:
                 if i % self.cross_attn_interval == 0:
-                    hidden_states = hidden_states + self.perceiver_cross_attention[ca_idx](
+                    hidden_states = hidden_states + self.perceiver_cross_attention[
+                        ca_idx
+                    ](
                         cross_hidden_states, hidden_states
                     )  # torch.Size([2, 32, 2048])  torch.Size([2, 17550, 3072])
                     ca_idx += 1
@@ -703,7 +790,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
 
         # 6. Unpatchify
         p = self.config.patch_size
-        output = hidden_states.reshape(batch_size, num_frames, height // p, width // p, channels, p, p)
+        output = hidden_states.reshape(
+            batch_size, num_frames, height // p, width // p, channels, p, p
+        )
         output = output.permute(0, 1, 4, 2, 5, 3, 6).flatten(5, 6).flatten(3, 4)
 
         if not return_dict:
@@ -711,10 +800,14 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         return Transformer2DModelOutput(sample=output)
 
     @classmethod
-    def from_pretrained_2d(cls, pretrained_model_path, subfolder=None, transformer_additional_kwargs={}):
+    def from_pretrained_2d(
+        cls, pretrained_model_path, subfolder=None, transformer_additional_kwargs={}
+    ):
         if subfolder is not None:
             pretrained_model_path = os.path.join(pretrained_model_path, subfolder)
-        print(f"loaded 3D transformer's pretrained weights from {pretrained_model_path} ...")
+        print(
+            f"loaded 3D transformer's pretrained weights from {pretrained_model_path} ..."
+        )
 
         config_file = os.path.join(pretrained_model_path, 'config.json')
         if not os.path.isfile(config_file):
@@ -723,6 +816,7 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             config = json.load(f)
 
         from diffusers.utils import WEIGHTS_NAME
+
         model = cls.from_config(config, **transformer_additional_kwargs)
         model_file = os.path.join(pretrained_model_path, WEIGHTS_NAME)
         model_file_safetensors = model_file.replace(".bin", ".safetensors")
@@ -730,33 +824,66 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             state_dict = torch.load(model_file, map_location="cpu")
         elif os.path.exists(model_file_safetensors):
             from safetensors.torch import load_file, safe_open
+
             state_dict = load_file(model_file_safetensors)
         else:
             from safetensors.torch import load_file, safe_open
-            model_files_safetensors = glob.glob(os.path.join(pretrained_model_path, "*.safetensors"))
+
+            model_files_safetensors = glob.glob(
+                os.path.join(pretrained_model_path, "*.safetensors")
+            )
             state_dict = {}
             for model_file_safetensors in model_files_safetensors:
                 _state_dict = load_file(model_file_safetensors)
                 for key in _state_dict:
                     state_dict[key] = _state_dict[key]
-        
-        if model.state_dict()['patch_embed.proj.weight'].size() != state_dict['patch_embed.proj.weight'].size():
-            new_shape   = model.state_dict()['patch_embed.proj.weight'].size()
+
+        if (
+            model.state_dict()['patch_embed.proj.weight'].size()
+            != state_dict['patch_embed.proj.weight'].size()
+        ):
+            new_shape = model.state_dict()['patch_embed.proj.weight'].size()
             if len(new_shape) == 5:
-                state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).expand(new_shape).clone()
+                state_dict['patch_embed.proj.weight'] = (
+                    state_dict['patch_embed.proj.weight']
+                    .unsqueeze(2)
+                    .expand(new_shape)
+                    .clone()
+                )
                 state_dict['patch_embed.proj.weight'][:, :, :-1] = 0
             else:
-                if model.state_dict()['patch_embed.proj.weight'].size()[1] > state_dict['patch_embed.proj.weight'].size()[1]:
-                    model.state_dict()['patch_embed.proj.weight'][:, :state_dict['patch_embed.proj.weight'].size()[1], :, :] = state_dict['patch_embed.proj.weight']
-                    model.state_dict()['patch_embed.proj.weight'][:, state_dict['patch_embed.proj.weight'].size()[1]:, :, :] = 0
-                    state_dict['patch_embed.proj.weight'] = model.state_dict()['patch_embed.proj.weight']
+                if (
+                    model.state_dict()['patch_embed.proj.weight'].size()[1]
+                    > state_dict['patch_embed.proj.weight'].size()[1]
+                ):
+                    model.state_dict()['patch_embed.proj.weight'][
+                        :, : state_dict['patch_embed.proj.weight'].size()[1], :, :
+                    ] = state_dict['patch_embed.proj.weight']
+                    model.state_dict()['patch_embed.proj.weight'][
+                        :, state_dict['patch_embed.proj.weight'].size()[1] :, :, :
+                    ] = 0
+                    state_dict['patch_embed.proj.weight'] = model.state_dict()[
+                        'patch_embed.proj.weight'
+                    ]
                 else:
-                    model.state_dict()['patch_embed.proj.weight'][:, :, :, :] = state_dict['patch_embed.proj.weight'][:, :model.state_dict()['patch_embed.proj.weight'].size()[1], :, :]
-                    state_dict['patch_embed.proj.weight'] = model.state_dict()['patch_embed.proj.weight']
+                    model.state_dict()['patch_embed.proj.weight'][
+                        :, :, :, :
+                    ] = state_dict['patch_embed.proj.weight'][
+                        :,
+                        : model.state_dict()['patch_embed.proj.weight'].size()[1],
+                        :,
+                        :,
+                    ]
+                    state_dict['patch_embed.proj.weight'] = model.state_dict()[
+                        'patch_embed.proj.weight'
+                    ]
 
-        tmp_state_dict = {} 
+        tmp_state_dict = {}
         for key in state_dict:
-            if key in model.state_dict().keys() and model.state_dict()[key].size() == state_dict[key].size():
+            if (
+                key in model.state_dict().keys()
+                and model.state_dict()[key].size() == state_dict[key].size()
+            ):
                 tmp_state_dict[key] = state_dict[key]
             else:
                 print(key, "Size don't match, skip")
@@ -765,25 +892,37 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         m, u = model.load_state_dict(state_dict, strict=False)
         print(f"### missing keys: {len(m)}; \n### unexpected keys: {len(u)};")
         print(m)
-        
+
         params = [p.numel() if "mamba" in n else 0 for n, p in model.named_parameters()]
         print(f"### Mamba Parameters: {sum(params) / 1e6} M")
 
-        params = [p.numel() if "attn1." in n else 0 for n, p in model.named_parameters()]
+        params = [
+            p.numel() if "attn1." in n else 0 for n, p in model.named_parameters()
+        ]
         print(f"### attn1 Parameters: {sum(params) / 1e6} M")
-        
+
         return model
 
     @classmethod
-    def from_pretrained_cus(cls, pretrained_model_path, subfolder=None, config_path=None, transformer_additional_kwargs={}):
+    def from_pretrained_cus(
+        cls,
+        pretrained_model_path,
+        subfolder=None,
+        config_path=None,
+        transformer_additional_kwargs={},
+    ):
         if subfolder:
             config_path = config_path or pretrained_model_path
             config_file = os.path.join(config_path, subfolder, 'config.json')
             pretrained_model_path = os.path.join(pretrained_model_path, subfolder)
         else:
-            config_file = os.path.join(config_path or pretrained_model_path, 'config.json')
+            config_file = os.path.join(
+                config_path or pretrained_model_path, 'config.json'
+            )
 
-        print(f"Loading 3D transformer's pretrained weights from {pretrained_model_path} ...")
+        print(
+            f"Loading 3D transformer's pretrained weights from {pretrained_model_path} ..."
+        )
 
         # Check if config file exists
         if not os.path.isfile(config_file):
@@ -794,6 +933,7 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             config = json.load(f)
 
         from diffusers.utils import WEIGHTS_NAME
+
         model = cls.from_config(config, **transformer_additional_kwargs)
         model_file = os.path.join(pretrained_model_path, WEIGHTS_NAME)
         model_file_safetensors = model_file.replace(".bin", ".safetensors")
@@ -801,33 +941,66 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             state_dict = torch.load(model_file, map_location="cpu")
         elif os.path.exists(model_file_safetensors):
             from safetensors.torch import load_file
+
             state_dict = load_file(model_file_safetensors)
         else:
             from safetensors.torch import load_file
-            model_files_safetensors = glob.glob(os.path.join(pretrained_model_path, "*.safetensors"))
+
+            model_files_safetensors = glob.glob(
+                os.path.join(pretrained_model_path, "*.safetensors")
+            )
             state_dict = {}
             for model_file_safetensors in model_files_safetensors:
                 _state_dict = load_file(model_file_safetensors)
                 for key in _state_dict:
                     state_dict[key] = _state_dict[key]
 
-        if model.state_dict()['patch_embed.proj.weight'].size() != state_dict['patch_embed.proj.weight'].size():
-            new_shape   = model.state_dict()['patch_embed.proj.weight'].size()
+        if (
+            model.state_dict()['patch_embed.proj.weight'].size()
+            != state_dict['patch_embed.proj.weight'].size()
+        ):
+            new_shape = model.state_dict()['patch_embed.proj.weight'].size()
             if len(new_shape) == 5:
-                state_dict['patch_embed.proj.weight'] = state_dict['patch_embed.proj.weight'].unsqueeze(2).expand(new_shape).clone()
+                state_dict['patch_embed.proj.weight'] = (
+                    state_dict['patch_embed.proj.weight']
+                    .unsqueeze(2)
+                    .expand(new_shape)
+                    .clone()
+                )
                 state_dict['patch_embed.proj.weight'][:, :, :-1] = 0
             else:
-                if model.state_dict()['patch_embed.proj.weight'].size()[1] > state_dict['patch_embed.proj.weight'].size()[1]:
-                    model.state_dict()['patch_embed.proj.weight'][:, :state_dict['patch_embed.proj.weight'].size()[1], :, :] = state_dict['patch_embed.proj.weight']
-                    model.state_dict()['patch_embed.proj.weight'][:, state_dict['patch_embed.proj.weight'].size()[1]:, :, :] = 0
-                    state_dict['patch_embed.proj.weight'] = model.state_dict()['patch_embed.proj.weight']
+                if (
+                    model.state_dict()['patch_embed.proj.weight'].size()[1]
+                    > state_dict['patch_embed.proj.weight'].size()[1]
+                ):
+                    model.state_dict()['patch_embed.proj.weight'][
+                        :, : state_dict['patch_embed.proj.weight'].size()[1], :, :
+                    ] = state_dict['patch_embed.proj.weight']
+                    model.state_dict()['patch_embed.proj.weight'][
+                        :, state_dict['patch_embed.proj.weight'].size()[1] :, :, :
+                    ] = 0
+                    state_dict['patch_embed.proj.weight'] = model.state_dict()[
+                        'patch_embed.proj.weight'
+                    ]
                 else:
-                    model.state_dict()['patch_embed.proj.weight'][:, :, :, :] = state_dict['patch_embed.proj.weight'][:, :model.state_dict()['patch_embed.proj.weight'].size()[1], :, :]
-                    state_dict['patch_embed.proj.weight'] = model.state_dict()['patch_embed.proj.weight']
+                    model.state_dict()['patch_embed.proj.weight'][
+                        :, :, :, :
+                    ] = state_dict['patch_embed.proj.weight'][
+                        :,
+                        : model.state_dict()['patch_embed.proj.weight'].size()[1],
+                        :,
+                        :,
+                    ]
+                    state_dict['patch_embed.proj.weight'] = model.state_dict()[
+                        'patch_embed.proj.weight'
+                    ]
 
-        tmp_state_dict = {} 
+        tmp_state_dict = {}
         for key in state_dict:
-            if key in model.state_dict().keys() and model.state_dict()[key].size() == state_dict[key].size():
+            if (
+                key in model.state_dict().keys()
+                and model.state_dict()[key].size() == state_dict[key].size()
+            ):
                 tmp_state_dict[key] = state_dict[key]
             else:
                 print(key, "Size don't match, skip")
@@ -836,26 +1009,29 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         m, u = model.load_state_dict(state_dict, strict=False)
         print(f"### missing keys: {len(m)}; \n### unexpected keys: {len(u)};")
         print(m)
-        
+
         params = [p.numel() if "mamba" in n else 0 for n, p in model.named_parameters()]
         print(f"### Mamba Parameters: {sum(params) / 1e6} M")
 
-        params = [p.numel() if "attn1." in n else 0 for n, p in model.named_parameters()]
+        params = [
+            p.numel() if "attn1." in n else 0 for n, p in model.named_parameters()
+        ]
         print(f"### attn1 Parameters: {sum(params) / 1e6} M")
-        
+
         return model
+
 
 if __name__ == '__main__':
     device = "cuda:0"
     weight_dtype = torch.bfloat16
     model_path = "/group/40075/wangboyu/CogVideoX-Fun/CogVideoX-Fun-V1.1-5b-InP"
 
-    transformer_additional_kwargs={
+    transformer_additional_kwargs = {
         'is_train_cross': True,
         'cross_attn_in_channels': 16,
         'cross_attn_interval': 2,
-        'cross_attn_dim_head' : 128,
-        'cross_attn_num_heads':16,
+        'cross_attn_dim_head': 128,
+        'cross_attn_num_heads': 16,
     }
 
     transformer = CrossTransformer3DModel.from_pretrained_2d(
@@ -871,23 +1047,26 @@ if __name__ == '__main__':
 
     b = 1
     dim = 16
-    noisy_latents    = torch.ones(b, 13, dim, 60, 90).to(device, dtype=weight_dtype)
-    inpaint_latents  = torch.ones(b, 13, dim+1, 60, 90).to(device, dtype=weight_dtype)
+    noisy_latents = torch.ones(b, 13, dim, 60, 90).to(device, dtype=weight_dtype)
+    inpaint_latents = torch.ones(b, 13, dim + 1, 60, 90).to(device, dtype=weight_dtype)
     # cross_latents          = torch.ones(b, 13, dim, 60, 90).to(device, dtype=weight_dtype)
-    cross_latents          = torch.ones(b, 1, dim, 60, 90).to(device, dtype=weight_dtype)
-    prompt_embeds    = torch.ones(b, 226, 4096).to(device, dtype=weight_dtype)
-    image_rotary_emb = (torch.ones(17550, 64).to(device, dtype=weight_dtype), torch.ones(17550, 64).to(device, dtype=weight_dtype))
-    timesteps        = torch.tensor([311]).to(device, dtype=weight_dtype)
+    cross_latents = torch.ones(b, 1, dim, 60, 90).to(device, dtype=weight_dtype)
+    prompt_embeds = torch.ones(b, 226, 4096).to(device, dtype=weight_dtype)
+    image_rotary_emb = (
+        torch.ones(17550, 64).to(device, dtype=weight_dtype),
+        torch.ones(17550, 64).to(device, dtype=weight_dtype),
+    )
+    timesteps = torch.tensor([311]).to(device, dtype=weight_dtype)
     assert len(timesteps) == b
 
     model_output = transformer(
-                    hidden_states=noisy_latents,
-                    encoder_hidden_states=prompt_embeds,
-                    timestep=timesteps,
-                    inpaint_latents=inpaint_latents,
-                    cross_latents = cross_latents,
-                    image_rotary_emb=image_rotary_emb,
-                    return_dict=False,
-                )[0]
+        hidden_states=noisy_latents,
+        encoder_hidden_states=prompt_embeds,
+        timestep=timesteps,
+        inpaint_latents=inpaint_latents,
+        cross_latents=cross_latents,
+        image_rotary_emb=image_rotary_emb,
+        return_dict=False,
+    )[0]
 
     print(model_output)

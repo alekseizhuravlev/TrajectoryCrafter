@@ -12,3 +12,4 @@ git clone https://huggingface.co/alibaba-pai/CogVideoX-Fun-V1.1-5b-InP
 ## caption model
 git clone https://huggingface.co/Salesforce/blip2-opt-2.7b
 cd ..
+

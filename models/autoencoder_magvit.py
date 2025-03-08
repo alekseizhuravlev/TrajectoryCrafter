@@ -29,7 +29,10 @@ from diffusers.models.downsampling import CogVideoXDownsample3D
 from diffusers.models.modeling_outputs import AutoencoderKLOutput
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.models.upsampling import CogVideoXUpsample3D
-from diffusers.models.autoencoders.vae import DecoderOutput, DiagonalGaussianDistribution
+from diffusers.models.autoencoders.vae import (
+    DecoderOutput,
+    DiagonalGaussianDistribution,
+)
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
@@ -51,7 +54,13 @@ class CogVideoXSafeConv3d(nn.Conv3d):
 
             if kernel_size > 1:
                 input_chunks = [input_chunks[0]] + [
-                    torch.cat((input_chunks[i - 1][:, :, -kernel_size + 1 :], input_chunks[i]), dim=2)
+                    torch.cat(
+                        (
+                            input_chunks[i - 1][:, :, -kernel_size + 1 :],
+                            input_chunks[i],
+                        ),
+                        dim=2,
+                    )
                     for i in range(1, len(input_chunks))
                 ]
 
@@ -100,7 +109,14 @@ class CogVideoXCausalConv3d(nn.Module):
         self.height_pad = height_pad
         self.width_pad = width_pad
         self.time_pad = time_pad
-        self.time_causal_padding = (width_pad, width_pad, height_pad, height_pad, time_pad, 0)
+        self.time_causal_padding = (
+            width_pad,
+            width_pad,
+            height_pad,
+            height_pad,
+            time_pad,
+            0,
+        )
 
         self.temporal_dim = 2
         self.time_kernel_size = time_kernel_size
@@ -121,7 +137,9 @@ class CogVideoXCausalConv3d(nn.Module):
         kernel_size = self.time_kernel_size
         if kernel_size > 1:
             cached_inputs = (
-                [self.conv_cache] if self.conv_cache is not None else [inputs[:, :, :1]] * (kernel_size - 1)
+                [self.conv_cache]
+                if self.conv_cache is not None
+                else [inputs[:, :, :1]] * (kernel_size - 1)
             )
             inputs = torch.cat(cached_inputs + [inputs], dim=2)
         return inputs
@@ -168,9 +186,15 @@ class CogVideoXSpatialNorm3D(nn.Module):
         groups: int = 32,
     ):
         super().__init__()
-        self.norm_layer = nn.GroupNorm(num_channels=f_channels, num_groups=groups, eps=1e-6, affine=True)
-        self.conv_y = CogVideoXCausalConv3d(zq_channels, f_channels, kernel_size=1, stride=1)
-        self.conv_b = CogVideoXCausalConv3d(zq_channels, f_channels, kernel_size=1, stride=1)
+        self.norm_layer = nn.GroupNorm(
+            num_channels=f_channels, num_groups=groups, eps=1e-6, affine=True
+        )
+        self.conv_y = CogVideoXCausalConv3d(
+            zq_channels, f_channels, kernel_size=1, stride=1
+        )
+        self.conv_b = CogVideoXCausalConv3d(
+            zq_channels, f_channels, kernel_size=1, stride=1
+        )
 
     def forward(self, f: torch.Tensor, zq: torch.Tensor) -> torch.Tensor:
         if f.shape[2] > 1 and f.shape[2] % 2 == 1:
@@ -238,8 +262,12 @@ class CogVideoXResnetBlock3D(nn.Module):
         self.use_conv_shortcut = conv_shortcut
 
         if spatial_norm_dim is None:
-            self.norm1 = nn.GroupNorm(num_channels=in_channels, num_groups=groups, eps=eps)
-            self.norm2 = nn.GroupNorm(num_channels=out_channels, num_groups=groups, eps=eps)
+            self.norm1 = nn.GroupNorm(
+                num_channels=in_channels, num_groups=groups, eps=eps
+            )
+            self.norm2 = nn.GroupNorm(
+                num_channels=out_channels, num_groups=groups, eps=eps
+            )
         else:
             self.norm1 = CogVideoXSpatialNorm3D(
                 f_channels=in_channels,
@@ -253,25 +281,40 @@ class CogVideoXResnetBlock3D(nn.Module):
             )
 
         self.conv1 = CogVideoXCausalConv3d(
-            in_channels=in_channels, out_channels=out_channels, kernel_size=3, pad_mode=pad_mode
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            pad_mode=pad_mode,
         )
 
         if temb_channels > 0:
-            self.temb_proj = nn.Linear(in_features=temb_channels, out_features=out_channels)
+            self.temb_proj = nn.Linear(
+                in_features=temb_channels, out_features=out_channels
+            )
 
         self.dropout = nn.Dropout(dropout)
         self.conv2 = CogVideoXCausalConv3d(
-            in_channels=out_channels, out_channels=out_channels, kernel_size=3, pad_mode=pad_mode
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            pad_mode=pad_mode,
         )
 
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
                 self.conv_shortcut = CogVideoXCausalConv3d(
-                    in_channels=in_channels, out_channels=out_channels, kernel_size=3, pad_mode=pad_mode
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=3,
+                    pad_mode=pad_mode,
                 )
             else:
                 self.conv_shortcut = CogVideoXSafeConv3d(
-                    in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
                 )
 
     def forward(
@@ -291,7 +334,10 @@ class CogVideoXResnetBlock3D(nn.Module):
         hidden_states = self.conv1(hidden_states)
 
         if temb is not None:
-            hidden_states = hidden_states + self.temb_proj(self.nonlinearity(temb))[:, :, None, None, None]
+            hidden_states = (
+                hidden_states
+                + self.temb_proj(self.nonlinearity(temb))[:, :, None, None, None]
+            )
 
         if zq is not None:
             hidden_states = self.norm2(hidden_states, zq)
@@ -380,7 +426,10 @@ class CogVideoXDownBlock3D(nn.Module):
             self.downsamplers = nn.ModuleList(
                 [
                     CogVideoXDownsample3D(
-                        out_channels, out_channels, padding=downsample_padding, compress_time=compress_time
+                        out_channels,
+                        out_channels,
+                        padding=downsample_padding,
+                        compress_time=compress_time,
                     )
                 ]
             )
@@ -572,7 +621,10 @@ class CogVideoXUpBlock3D(nn.Module):
             self.upsamplers = nn.ModuleList(
                 [
                     CogVideoXUpsample3D(
-                        out_channels, out_channels, padding=upsample_padding, compress_time=compress_time
+                        out_channels,
+                        out_channels,
+                        padding=upsample_padding,
+                        compress_time=compress_time,
                     )
                 ]
             )
@@ -656,7 +708,9 @@ class CogVideoXEncoder3D(nn.Module):
         # log2 of temporal_compress_times
         temporal_compress_level = int(np.log2(temporal_compression_ratio))
 
-        self.conv_in = CogVideoXCausalConv3d(in_channels, block_out_channels[0], kernel_size=3, pad_mode=pad_mode)
+        self.conv_in = CogVideoXCausalConv3d(
+            in_channels, block_out_channels[0], kernel_size=3, pad_mode=pad_mode
+        )
         self.down_blocks = nn.ModuleList([])
 
         # down blocks
@@ -681,7 +735,9 @@ class CogVideoXEncoder3D(nn.Module):
                     compress_time=compress_time,
                 )
             else:
-                raise ValueError("Invalid `down_block_type` encountered. Must be `CogVideoXDownBlock3D`")
+                raise ValueError(
+                    "Invalid `down_block_type` encountered. Must be `CogVideoXDownBlock3D`"
+                )
 
             self.down_blocks.append(down_block)
 
@@ -705,7 +761,9 @@ class CogVideoXEncoder3D(nn.Module):
 
         self.gradient_checkpointing = False
 
-    def forward(self, sample: torch.Tensor, temb: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(
+        self, sample: torch.Tensor, temb: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         r"""The forward method of the `CogVideoXEncoder3D` class."""
         hidden_states = self.conv_in(sample)
 
@@ -790,7 +848,10 @@ class CogVideoXDecoder3D(nn.Module):
         reversed_block_out_channels = list(reversed(block_out_channels))
 
         self.conv_in = CogVideoXCausalConv3d(
-            in_channels, reversed_block_out_channels[0], kernel_size=3, pad_mode=pad_mode
+            in_channels,
+            reversed_block_out_channels[0],
+            kernel_size=3,
+            pad_mode=pad_mode,
         )
 
         # mid block
@@ -834,19 +895,28 @@ class CogVideoXDecoder3D(nn.Module):
                 )
                 prev_output_channel = output_channel
             else:
-                raise ValueError("Invalid `up_block_type` encountered. Must be `CogVideoXUpBlock3D`")
+                raise ValueError(
+                    "Invalid `up_block_type` encountered. Must be `CogVideoXUpBlock3D`"
+                )
 
             self.up_blocks.append(up_block)
 
-        self.norm_out = CogVideoXSpatialNorm3D(reversed_block_out_channels[-1], in_channels, groups=norm_num_groups)
+        self.norm_out = CogVideoXSpatialNorm3D(
+            reversed_block_out_channels[-1], in_channels, groups=norm_num_groups
+        )
         self.conv_act = nn.SiLU()
         self.conv_out = CogVideoXCausalConv3d(
-            reversed_block_out_channels[-1], out_channels, kernel_size=3, pad_mode=pad_mode
+            reversed_block_out_channels[-1],
+            out_channels,
+            kernel_size=3,
+            pad_mode=pad_mode,
         )
 
         self.gradient_checkpointing = False
 
-    def forward(self, sample: torch.Tensor, temb: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(
+        self, sample: torch.Tensor, temb: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         r"""The forward method of the `CogVideoXDecoder3D` class."""
         hidden_states = self.conv_in(sample)
 
@@ -976,8 +1046,16 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
             norm_num_groups=norm_num_groups,
             temporal_compression_ratio=temporal_compression_ratio,
         )
-        self.quant_conv = CogVideoXSafeConv3d(2 * out_channels, 2 * out_channels, 1) if use_quant_conv else None
-        self.post_quant_conv = CogVideoXSafeConv3d(out_channels, out_channels, 1) if use_post_quant_conv else None
+        self.quant_conv = (
+            CogVideoXSafeConv3d(2 * out_channels, 2 * out_channels, 1)
+            if use_quant_conv
+            else None
+        )
+        self.post_quant_conv = (
+            CogVideoXSafeConv3d(out_channels, out_channels, 1)
+            if use_post_quant_conv
+            else None
+        )
 
         self.use_slicing = False
         self.use_tiling = False
@@ -1004,9 +1082,13 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
         self.tile_sample_min_height = sample_height // 2
         self.tile_sample_min_width = sample_width // 2
         self.tile_latent_min_height = int(
-            self.tile_sample_min_height / (2 ** (len(self.config.block_out_channels) - 1))
+            self.tile_sample_min_height
+            / (2 ** (len(self.config.block_out_channels) - 1))
         )
-        self.tile_latent_min_width = int(self.tile_sample_min_width / (2 ** (len(self.config.block_out_channels) - 1)))
+        self.tile_latent_min_width = int(
+            self.tile_sample_min_width
+            / (2 ** (len(self.config.block_out_channels) - 1))
+        )
 
         # These are experimental overlap factors that were chosen based on experimentation and seem to work best for
         # 720x480 (WxH) resolution. The above resolution is the strongly recommended generation resolution in CogVideoX
@@ -1051,14 +1133,24 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
                 value might cause more tiles to be processed leading to slow down of the decoding process.
         """
         self.use_tiling = True
-        self.tile_sample_min_height = tile_sample_min_height or self.tile_sample_min_height
+        self.tile_sample_min_height = (
+            tile_sample_min_height or self.tile_sample_min_height
+        )
         self.tile_sample_min_width = tile_sample_min_width or self.tile_sample_min_width
         self.tile_latent_min_height = int(
-            self.tile_sample_min_height / (2 ** (len(self.config.block_out_channels) - 1))
+            self.tile_sample_min_height
+            / (2 ** (len(self.config.block_out_channels) - 1))
         )
-        self.tile_latent_min_width = int(self.tile_sample_min_width / (2 ** (len(self.config.block_out_channels) - 1)))
-        self.tile_overlap_factor_height = tile_overlap_factor_height or self.tile_overlap_factor_height
-        self.tile_overlap_factor_width = tile_overlap_factor_width or self.tile_overlap_factor_width
+        self.tile_latent_min_width = int(
+            self.tile_sample_min_width
+            / (2 ** (len(self.config.block_out_channels) - 1))
+        )
+        self.tile_overlap_factor_height = (
+            tile_overlap_factor_height or self.tile_overlap_factor_height
+        )
+        self.tile_overlap_factor_width = (
+            tile_overlap_factor_width or self.tile_overlap_factor_width
+        )
 
     def disable_tiling(self) -> None:
         r"""
@@ -1122,10 +1214,14 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
             return (posterior,)
         return AutoencoderKLOutput(latent_dist=posterior)
 
-    def _decode(self, z: torch.Tensor, return_dict: bool = True) -> Union[DecoderOutput, torch.Tensor]:
+    def _decode(
+        self, z: torch.Tensor, return_dict: bool = True
+    ) -> Union[DecoderOutput, torch.Tensor]:
         batch_size, num_channels, num_frames, height, width = z.shape
 
-        if self.use_tiling and (width > self.tile_latent_min_width or height > self.tile_latent_min_height):
+        if self.use_tiling and (
+            width > self.tile_latent_min_width or height > self.tile_latent_min_height
+        ):
             return self.tiled_decode(z, return_dict=return_dict)
 
         if num_frames == 1:
@@ -1157,7 +1253,9 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
         return DecoderOutput(sample=dec)
 
     @apply_forward_hook
-    def decode(self, z: torch.Tensor, return_dict: bool = True) -> Union[DecoderOutput, torch.Tensor]:
+    def decode(
+        self, z: torch.Tensor, return_dict: bool = True
+    ) -> Union[DecoderOutput, torch.Tensor]:
         """
         Decode a batch of images.
 
@@ -1181,23 +1279,29 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
             return (decoded,)
         return DecoderOutput(sample=decoded)
 
-    def blend_v(self, a: torch.Tensor, b: torch.Tensor, blend_extent: int) -> torch.Tensor:
+    def blend_v(
+        self, a: torch.Tensor, b: torch.Tensor, blend_extent: int
+    ) -> torch.Tensor:
         blend_extent = min(a.shape[3], b.shape[3], blend_extent)
         for y in range(blend_extent):
-            b[:, :, :, y, :] = a[:, :, :, -blend_extent + y, :] * (1 - y / blend_extent) + b[:, :, :, y, :] * (
-                y / blend_extent
-            )
+            b[:, :, :, y, :] = a[:, :, :, -blend_extent + y, :] * (
+                1 - y / blend_extent
+            ) + b[:, :, :, y, :] * (y / blend_extent)
         return b
 
-    def blend_h(self, a: torch.Tensor, b: torch.Tensor, blend_extent: int) -> torch.Tensor:
+    def blend_h(
+        self, a: torch.Tensor, b: torch.Tensor, blend_extent: int
+    ) -> torch.Tensor:
         blend_extent = min(a.shape[4], b.shape[4], blend_extent)
         for x in range(blend_extent):
-            b[:, :, :, :, x] = a[:, :, :, :, -blend_extent + x] * (1 - x / blend_extent) + b[:, :, :, :, x] * (
-                x / blend_extent
-            )
+            b[:, :, :, :, x] = a[:, :, :, :, -blend_extent + x] * (
+                1 - x / blend_extent
+            ) + b[:, :, :, :, x] * (x / blend_extent)
         return b
 
-    def tiled_decode(self, z: torch.Tensor, return_dict: bool = True) -> Union[DecoderOutput, torch.Tensor]:
+    def tiled_decode(
+        self, z: torch.Tensor, return_dict: bool = True
+    ) -> Union[DecoderOutput, torch.Tensor]:
         r"""
         Decode a batch of images using a tiled decoder.
 
@@ -1223,10 +1327,18 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
 
         batch_size, num_channels, num_frames, height, width = z.shape
 
-        overlap_height = int(self.tile_latent_min_height * (1 - self.tile_overlap_factor_height))
-        overlap_width = int(self.tile_latent_min_width * (1 - self.tile_overlap_factor_width))
-        blend_extent_height = int(self.tile_sample_min_height * self.tile_overlap_factor_height)
-        blend_extent_width = int(self.tile_sample_min_width * self.tile_overlap_factor_width)
+        overlap_height = int(
+            self.tile_latent_min_height * (1 - self.tile_overlap_factor_height)
+        )
+        overlap_width = int(
+            self.tile_latent_min_width * (1 - self.tile_overlap_factor_width)
+        )
+        blend_extent_height = int(
+            self.tile_sample_min_height * self.tile_overlap_factor_height
+        )
+        blend_extent_width = int(
+            self.tile_sample_min_width * self.tile_overlap_factor_width
+        )
         row_limit_height = self.tile_sample_min_height - blend_extent_height
         row_limit_width = self.tile_sample_min_width - blend_extent_width
         frame_batch_size = self.num_latent_frames_batch_size
@@ -1240,7 +1352,9 @@ class AutoencoderKLCogVideoX(ModelMixin, ConfigMixin, FromOriginalModelMixin):
                 time = []
                 for k in range(num_frames // frame_batch_size):
                     remaining_frames = num_frames % frame_batch_size
-                    start_frame = frame_batch_size * k + (0 if k == 0 else remaining_frames)
+                    start_frame = frame_batch_size * k + (
+                        0 if k == 0 else remaining_frames
+                    )
                     end_frame = frame_batch_size * (k + 1) + remaining_frames
                     tile = z[
                         :,
