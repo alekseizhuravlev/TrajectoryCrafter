@@ -65,11 +65,10 @@ Ideally, you can load pretrained models directly from HuggingFace. If you encoun
 
 1. Download the pretrained models using HuggingFace or using git-lfs
 ```bash
-# HuggingFace
+# HuggingFace (recommand)
 sh download/download_hf.sh 
-```
-```bash
-# git-lfs
+
+# git-lfs (much slower but more stable)
 sh download/download_lfs.sh 
 ```
 
