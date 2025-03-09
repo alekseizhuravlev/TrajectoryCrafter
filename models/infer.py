@@ -4,9 +4,10 @@ import numpy as np
 import torch
 
 from diffusers.training_utils import set_seed
-from models.depth_crafter_ppl import DepthCrafterPipeline
-from models.unet import DiffusersUNetSpatioTemporalConditionModelDepthCrafter
-
+# from models.depth_crafter_ppl import DepthCrafterPipeline
+# from models.unet import DiffusersUNetSpatioTemporalConditionModelDepthCrafter
+from DepthCrafter.depthcrafter.depth_crafter_ppl import DepthCrafterPipeline
+from DepthCrafter.depthcrafter.unet import DiffusersUNetSpatioTemporalConditionModelDepthCrafter
 
 class DepthCrafterDemo:
     def __init__(
