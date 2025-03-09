@@ -72,7 +72,7 @@ sh download/download_hf.sh
 sh download/download_lfs.sh 
 ```
 
-2. Change default path of the pretrained models to your local path.
+2. Change default path of the pretrained models to your local path in [inference.py](./inference.py).
 
 ## 💫 Inference 
 ### 1. Command line
