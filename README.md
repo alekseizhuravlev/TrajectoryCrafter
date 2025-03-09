@@ -61,16 +61,19 @@ pip install -r requirements.txt
 ```
 
 ### 3. Download pretrained models
-Download the pretrained models using HuggingFace (recommended)
+Ideally, you can load pretrained models directly from HuggingFace. If you encounter issues connecting to HuggingFace, you can download the pretrained models locally instead. To do so, you can:
+
+1. Download the pretrained models using HuggingFace or using git-lfs
 ```bash
-# Login HuggingFace first
+# HuggingFace
 sh download/download_hf.sh 
 ```
-
-Use git-lfs to download the pretrained models if you encounter problems connecting to HuggingFace
 ```bash
+# git-lfs
 sh download/download_lfs.sh 
 ```
+
+2. Change default path of the pretrained models to your local path.
 
 ## 💫 Inference 
 ### 1. Command line

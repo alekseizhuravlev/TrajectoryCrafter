@@ -139,12 +139,7 @@ def get_parser():
         default="tencent/DepthCrafter",
         help='Path to the UNet model',
     )
-    parser.add_argument(
-        '--pre_train_path_vda',
-        type=str,
-        default='checkpoints/video_depth_anything_vitl.pth',
-        help='Path to the pre-trained model',
-    )
+
     # parser.add_argument('--pre_train_path', type=str, default='checkpoints/stable-video-diffusion-img2vid-xt', help='Path to the pre-trained model')
     parser.add_argument(
         '--pre_train_path',
