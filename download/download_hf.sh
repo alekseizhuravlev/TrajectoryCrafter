@@ -1,4 +1,4 @@
 mkdir -p ./checkpoints/
-cd ./downlod
+cd ./download
 python download_hf.py
 cd ..
