@@ -14,8 +14,8 @@
 
 ## 🔆 Introduction
 
-- __[2024-03-10]__: 🔥🔥 Update the arXiv preprint.
-- __[2024-02-23]__: Launch the project page.
+- __[2025-03-10]__: 🔥🔥 Update the arXiv preprint.
+- __[2025-02-23]__: Launch the project page.
 
 
 TrajectoryCrafter can generate high-fidelity novel views from <strong>casually captured monocular video</strong>, while also supporting highly precise pose control. Below shows some examples:
@@ -48,6 +48,11 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 
 ## ⚙️ Setup
 
+### 0. GPU memory requirement
+
+We recommend deploying it on a GPU with VRAM ≥ 24GB.
+
+
 ### 1. Clone TrajectoryCrafter
 ```bash
 git clone --recursive https://github.com/TrajectoryCrafter/TrajectoryCrafter.git
@@ -65,7 +70,7 @@ Ideally, you can load pretrained models directly from HuggingFace. If you encoun
 
 1. Download the pretrained models using HuggingFace or using git-lfs
 ```bash
-# HuggingFace (recommand)
+# HuggingFace (recommend)
 sh download/download_hf.sh 
 
 # git-lfs (much slower but more stable)
