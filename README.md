@@ -50,7 +50,7 @@ TrajectoryCrafter can generate high-fidelity novel views from <strong>casually c
 
 ### 0. GPU memory requirement
 
-We recommend deploying it on a GPU with VRAM ≥ 28GB.
+We recommend deploying it on a GPU with VRAM ≥ 24GB.
 
 
 ### 1. Clone TrajectoryCrafter
