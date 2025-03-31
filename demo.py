@@ -387,6 +387,114 @@ class TrajCrafter:
                 fps=opts.fps * 4,
             )
 
+    def infer_zoom(self, opts):
+        frames = read_video_frames(
+            opts.video_path, opts.video_length, opts.stride, opts.max_res
+        )
+        prompt = self.get_caption(opts, frames[opts.video_length // 2])
+        # depths= self.depth_estimater.infer(frames, opts.near, opts.far).to(opts.device)
+        depths = self.depth_estimater.infer(
+            frames,
+            opts.near,
+            opts.far,
+            opts.depth_inference_steps,
+            opts.depth_guidance_scale,
+            window_size=opts.window_size,
+            overlap=opts.overlap,
+        ).to(opts.device)
+        frames = (
+            torch.from_numpy(frames).permute(0, 3, 1, 2).to(opts.device) * 2.0 - 1.0
+        )  # 49 576 1024 3 -> 49 3 576 1024, [-1,1]
+        assert frames.shape[0] == opts.video_length
+        pose_s, pose_t, K = self.get_poses_f(opts, depths, num_frames=opts.video_length, f_new=250)
+
+        warped_images = []
+        masks = []
+        for i in tqdm(range(opts.video_length)):
+            warped_frame2, mask2, warped_depth2, flow12 = self.funwarp.forward_warp(
+                frames[i : i + 1],
+                None,
+                depths[i : i + 1],
+                pose_s[i : i + 1],
+                pose_t[i : i + 1],
+                K[0 : 1],
+                K[i : i + 1],
+                opts.mask,
+                twice=False,
+            )
+            warped_images.append(warped_frame2)
+            masks.append(mask2)
+        cond_video = (torch.cat(warped_images) + 1.0) / 2.0
+        cond_masks = torch.cat(masks)
+
+        frames = F.interpolate(
+            frames, size=opts.sample_size, mode='bilinear', align_corners=False
+        )
+        cond_video = F.interpolate(
+            cond_video, size=opts.sample_size, mode='bilinear', align_corners=False
+        )
+        cond_masks = F.interpolate(cond_masks, size=opts.sample_size, mode='nearest')
+        save_video(
+            (frames.permute(0, 2, 3, 1) + 1.0) / 2.0,
+            os.path.join(opts.save_dir, 'input.mp4'),
+            fps=opts.fps,
+        )
+        save_video(
+            cond_video.permute(0, 2, 3, 1),
+            os.path.join(opts.save_dir, 'render.mp4'),
+            fps=opts.fps,
+        )
+        save_video(
+            cond_masks.repeat(1, 3, 1, 1).permute(0, 2, 3, 1),
+            os.path.join(opts.save_dir, 'mask.mp4'),
+            fps=opts.fps,
+        )
+
+        frames = (frames.permute(1, 0, 2, 3).unsqueeze(0) + 1.0) / 2.0
+        frames_ref = frames[:, :, :10, :, :]
+        cond_video = cond_video.permute(1, 0, 2, 3).unsqueeze(0)
+        cond_masks = (1.0 - cond_masks.permute(1, 0, 2, 3).unsqueeze(0)) * 255.0
+        generator = torch.Generator(device=opts.device).manual_seed(opts.seed)
+
+        del self.depth_estimater
+        del self.caption_processor
+        del self.captioner
+        gc.collect()
+        torch.cuda.empty_cache()
+        with torch.no_grad():
+            sample = self.pipeline(
+                prompt,
+                num_frames=opts.video_length,
+                negative_prompt=opts.negative_prompt,
+                height=opts.sample_size[0],
+                width=opts.sample_size[1],
+                generator=generator,
+                guidance_scale=opts.diffusion_guidance_scale,
+                num_inference_steps=opts.diffusion_inference_steps,
+                video=cond_video,
+                mask_video=cond_masks,
+                reference=frames_ref,
+            ).videos
+        save_video(
+            sample[0].permute(1, 2, 3, 0),
+            os.path.join(opts.save_dir, 'gen.mp4'),
+            fps=opts.fps,
+        )
+
+        viz = True
+        if viz:
+            tensor_left = frames[0].to(opts.device)
+            tensor_right = sample[0].to(opts.device)
+            interval = torch.ones(3, 49, 384, 30).to(opts.device)
+            result = torch.cat((tensor_left, interval, tensor_right), dim=3)
+            result_reverse = torch.flip(result, dims=[1])
+            final_result = torch.cat((result, result_reverse[:, 1:, :, :]), dim=1)
+            save_video(
+                final_result.permute(1, 2, 3, 0),
+                os.path.join(opts.save_dir, 'viz.mp4'),
+                fps=opts.fps * 2,
+            )
+
     def get_caption(self, opts, image):
         image_array = (image * 255).astype(np.uint8)
         pil_image = Image.fromarray(image_array)
@@ -413,6 +521,52 @@ class TrajCrafter:
             .repeat(num_frames, 1, 1)
             .to(opts.device)
         )
+        c2w_init = (
+            torch.tensor(
+                [
+                    [-1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, -1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+            )
+            .to(opts.device)
+            .unsqueeze(0)
+        )
+        if opts.camera == 'target':
+            dtheta, dphi, dr, dx, dy = opts.target_pose
+            poses = generate_traj_specified(
+                c2w_init, dtheta, dphi, dr * radius, dx, dy, num_frames, opts.device
+            )
+        elif opts.camera == 'traj':
+            with open(opts.traj_txt, 'r') as file:
+                lines = file.readlines()
+                theta = [float(i) for i in lines[0].split()]
+                phi = [float(i) for i in lines[1].split()]
+                r = [float(i) * radius for i in lines[2].split()]
+            poses = generate_traj_txt(c2w_init, phi, theta, r, num_frames, opts.device)
+        poses[:, 2, 3] = poses[:, 2, 3] + radius
+        pose_s = poses[opts.anchor_idx : opts.anchor_idx + 1].repeat(num_frames, 1, 1)
+        pose_t = poses
+        return pose_s, pose_t, K
+
+    def get_poses_f(self, opts, depths, num_frames, f_new):
+        radius = (
+            depths[0, 0, depths.shape[-2] // 2, depths.shape[-1] // 2].cpu()
+            * opts.radius_scale
+        )
+        radius = min(radius, 5)
+        cx = 512.0  
+        cy = 288.0  
+        f = 500
+        # f_new,d_r: 250,0.5; 1000,-0.9
+        f_values = torch.linspace(f, f_new, num_frames, device=opts.device)
+        K = torch.zeros((num_frames, 3, 3), device=opts.device)
+        K[:, 0, 0] = f_values
+        K[:, 1, 1] = f_values
+        K[:, 0, 2] = cx
+        K[:, 1, 2] = cy
+        K[:, 2, 2] = 1.0
         c2w_init = (
             torch.tensor(
                 [

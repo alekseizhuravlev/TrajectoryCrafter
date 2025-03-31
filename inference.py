@@ -190,3 +190,5 @@ if __name__ == "__main__":
         pvd.infer_direct(opts)
     elif opts.mode == 'bullet':
         pvd.infer_bullet(opts)
+    elif opts.mode == 'zoom':
+        pvd.infer_zoom(opts)
