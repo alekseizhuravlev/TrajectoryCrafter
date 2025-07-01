@@ -7,6 +7,7 @@
  <a href='https://www.youtube.com/watch?v=dQtHFgyrids'><img src='https://img.shields.io/badge/Youtube-Video-b31b1b.svg'></a>&nbsp;
  <a href='https://huggingface.co/spaces/Doubiiu/TrajectoryCrafter'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Demo-blue'></a> &nbsp;
 
+ICCV 2025
 
 </div>
 
