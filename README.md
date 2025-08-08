@@ -100,3 +100,14 @@ Our model excels at handling videos with well-defined objects and clear motion, 
 ## 🤗 Related Works
 Including but not limited to: [CogVideo-Fun](https://github.com/aigc-apps/CogVideoX-Fun), [ViewCrafter](https://github.com/Drexubery/ViewCrafter), [DepthCrafter](https://github.com/Tencent/DepthCrafter), [GCD](https://gcd.cs.columbia.edu/), [NVS-Solver](https://github.com/ZHU-Zhiyu/NVS_Solver), [DimensionX](https://github.com/wenqsun/DimensionX), [ReCapture](https://generative-video-camera-controls.github.io/), [TrajAttention](https://xizaoqu.github.io/trajattn/), [GS-DiT](https://wkbian.github.io/Projects/GS-DiT/), [DaS](https://igl-hkust.github.io/das/), [RecamMaster](https://github.com/KwaiVGI/ReCamMaster), [GEN3C](https://research.nvidia.com/labs/toronto-ai/GEN3C/), [CAT4D](https://cat-4d.github.io/)...
 
+## 📜 Citation
+If you find this work helpful, please consider citing:
+```BibTeXw
+@inproceedings{mark2025trajectorycrafter,
+  title={Trajectorycrafter: Redirecting camera trajectory for monocular videos via diffusion models},
+  author={YU, Mark  and Hu, Wenbo and Xing, Jinbo and Shan, Ying},
+  booktitle=ICCV,
+  year={2025}
+}
+```
+
