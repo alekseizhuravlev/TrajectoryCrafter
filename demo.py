@@ -109,12 +109,19 @@ class TrajCrafter:
         cond_masks = (1.0 - cond_masks.permute(1, 0, 2, 3).unsqueeze(0)) * 255.0
         generator = torch.Generator(device=opts.device).manual_seed(opts.seed)
 
-        del self.depth_estimater
-        del self.caption_processor
-        del self.captioner
-        gc.collect()
-        torch.cuda.empty_cache()
+        # del self.depth_estimater
+        # del self.caption_processor
+        # del self.captioner
+        # gc.collect()
+        # torch.cuda.empty_cache()
         with torch.no_grad():
+            
+            # print("Checking input devices:")
+            # print("  cond_video:", cond_video.device, cond_video.dtype)
+            # print("  cond_masks:", cond_masks.device, cond_masks.dtype)
+            # print("  frames_ref:", frames_ref.device, frames_ref.dtype)
+
+            
             sample = self.pipeline(
                 prompt,
                 num_frames=opts.video_length,
@@ -124,8 +131,8 @@ class TrajCrafter:
                 generator=generator,
                 guidance_scale=opts.diffusion_guidance_scale,
                 num_inference_steps=opts.diffusion_inference_steps,
-                video=cond_video,
-                mask_video=cond_masks,
+                video=cond_video.to(opts.device),
+                mask_video=cond_masks.to(opts.device),
                 reference=frames_ref,
             ).videos
         save_video(

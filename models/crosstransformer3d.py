@@ -119,6 +119,12 @@ class RefPatchEmbed(nn.Module):
         """
         batch, num_frames, channels, height, width = image_embeds.shape
         image_embeds = image_embeds.reshape(-1, channels, height, width)
+        
+        ############ FIX!!!!!!
+        device = next(self.proj.parameters()).device
+        image_embeds = image_embeds.to(device)
+
+        
         image_embeds = self.proj(image_embeds)
         image_embeds = image_embeds.view(batch, num_frames, *image_embeds.shape[1:])
         image_embeds = image_embeds.flatten(3).transpose(

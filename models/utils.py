@@ -337,6 +337,8 @@ class Warper:
         unnormalized_pos = torch.matmul(
             intrinsic1_inv_4d, pos_vectors_homo
         )  # (b, h, w, 3, 1)
+        
+        # world_point = actual 3D points in world space
         world_points = depth_4d * unnormalized_pos  # (b, h, w, 3, 1)
         world_points_homo = torch.cat([world_points, ones_4d], dim=3)  # (b, h, w, 4, 1)
         trans_world_homo = torch.matmul(trans_4d, world_points_homo)  # (b, h, w, 4, 1)

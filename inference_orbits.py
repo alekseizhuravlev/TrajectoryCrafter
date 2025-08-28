@@ -3,6 +3,8 @@ import os
 from datetime import datetime
 import argparse
 import torch
+import copy
+import time
 
 
 def get_parser():
@@ -148,7 +150,10 @@ def get_parser():
         help='Path to the pre-trained model',
     )
     parser.add_argument(
-        '--cpu_offload', type=str, default='model', help='CPU offload strategy'
+        '--cpu_offload', type=str, 
+        default='model', 
+        # default='none', 
+        help='CPU offload strategy'
     )
     parser.add_argument(
         '--depth_inference_steps', type=int, default=5, help='Number of inference steps'
@@ -168,27 +173,98 @@ def get_parser():
     parser.add_argument(
         '--max_res', type=int, default=1024, help='Maximum resolution for processing'
     )
+    parser.add_argument(
+        '--radius',
+        type=float,
+        default=1.0,
+        help='Radius for camera orbit motions',
+    )
 
     return parser
 
 
 if __name__ == "__main__":
-    parser = get_parser()  # infer config.py
-    opts = parser.parse_args()
-    opts.weight_dtype = torch.bfloat16
-    if opts.exp_name == None:
-        prefix = datetime.now().strftime("%Y%m%d_%H%M")
-        opts.exp_name = (
-            f'{os.path.splitext(os.path.basename(opts.video_path))[0]}_{prefix}'
-        )
-    opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
-    os.makedirs(opts.save_dir, exist_ok=True)
-    pvd = TrajCrafter(opts)
-    if opts.mode == 'gradual':
-        pvd.infer_gradual(opts)
-    elif opts.mode == 'direct':
-        pvd.infer_direct(opts)
-    elif opts.mode == 'bullet':
-        pvd.infer_bullet(opts)
-    elif opts.mode == 'zoom':
-        pvd.infer_zoom(opts)
+    # parser = get_parser()  # infer config.py
+    # opts = parser.parse_args()
+    # opts.weight_dtype = torch.bfloat16
+    # if opts.exp_name == None:
+    #     prefix = datetime.now().strftime("%Y%m%d_%H%M")
+    #     opts.exp_name = (
+    #         f'{os.path.splitext(os.path.basename(opts.video_path))[0]}_{prefix}'
+    #     )
+    # opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
+    # os.makedirs(opts.save_dir, exist_ok=True)
+    # pvd = TrajCrafter(opts)
+    # if opts.mode == 'gradual':
+    #     pvd.infer_gradual(opts)
+    # elif opts.mode == 'direct':
+    #     pvd.infer_direct(opts)
+    # elif opts.mode == 'bullet':
+    #     pvd.infer_bullet(opts)
+    # elif opts.mode == 'zoom':
+    #     pvd.infer_zoom(opts)
+    
+    import torch, os
+    print("CUDA available:", torch.cuda.is_available())
+    print("Torch version:", torch.__version__)
+    print("CUDA version:", torch.version.cuda)
+    print("cuDNN version:", torch.backends.cudnn.version())
+    print("GPU:", torch.cuda.get_device_name(0))
+    print("SLURM node:", os.environ.get("SLURMD_NODENAME"))
+
+    
+    parser = get_parser()
+    opts_base = parser.parse_args()
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    video_basename = os.path.splitext(os.path.basename(opts_base.video_path))[0]
+
+    # Shared model instance
+    opts_base.weight_dtype = torch.bfloat16
+    opts_base.exp_name = f"{video_basename}_{timestamp}_sharedload"
+    opts_base.save_dir = os.path.join(opts_base.out_dir, opts_base.exp_name)
+    # os.makedirs(opts_base.save_dir, exist_ok=True)
+
+    crafter = TrajCrafter(opts_base)
+
+
+    radius = opts_base.radius
+
+    variants = [
+        ("left_-90",     [0, -90, radius, 0, 0]),
+        ("right_90",     [0, 90, radius, 0, 0]),
+        ("top_90",       [90, 0, radius, 0, 0]),
+        ("right_180",    [0, 180, radius, 0, 0]),
+        ("left_-180",    [0, -180, radius, 0, 0]),
+        ("top_180",      [180, 0, radius, 0, 0]),
+        ("left_-360",    [0, -360, radius, 0, 0]),
+        ("right_360",    [0, 360, radius, 0, 0]),
+    ]
+
+    for name, pose in variants:
+        print(f"\n=== Running {name} ===")
+        opts = copy.deepcopy(opts_base)
+        opts.exp_name = f"{video_basename}_{timestamp}_{name}_r{radius}"
+        opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
+        opts.camera = "target"
+        opts.mode = "gradual"
+        opts.mask = True
+        opts.target_pose = pose
+        opts.traj_txt = 'test/trajs/loop2.txt'
+
+        # make directories
+        os.makedirs(opts.save_dir, exist_ok=True)
+
+        start_time = time.time()
+
+        if opts.mode == 'gradual':
+            crafter.infer_gradual(opts)
+        elif opts.mode == 'direct':
+            crafter.infer_direct(opts)
+        elif opts.mode == 'bullet':
+            crafter.infer_bullet(opts)
+        elif opts.mode == 'zoom':
+            crafter.infer_zoom(opts)
+            
+        elapsed = time.time() - start_time
+        print(f"Finished {name} in {elapsed:.2f} seconds")
