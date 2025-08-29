@@ -552,7 +552,13 @@ class TrajCrafter:
                 phi = [float(i) for i in lines[1].split()]
                 r = [float(i) * radius for i in lines[2].split()]
             poses = generate_traj_txt(c2w_init, phi, theta, r, num_frames, opts.device)
+            
+            
+        print('get_poses(), poses', poses)
         poses[:, 2, 3] = poses[:, 2, 3] + radius
+        
+        print('get_poses(), poses[:, 2, 3] + radius', poses)
+        
         pose_s = poses[opts.anchor_idx : opts.anchor_idx + 1].repeat(num_frames, 1, 1)
         pose_t = poses
         return pose_s, pose_t, K

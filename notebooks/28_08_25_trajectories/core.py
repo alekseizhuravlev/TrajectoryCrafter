@@ -130,4 +130,74 @@ class TrajCrafterVisualization(TrajCrafter):
             'trajectory_params': opts.target_pose if hasattr(opts, 'target_pose') else None
         }
         
+    
+    def infer_gradual(self, opts):
+        frames = read_video_frames(
+            opts.video_path, opts.video_length, opts.stride, opts.max_res
+        )
+        # depths= self.depth_estimater.infer(frames, opts.near, opts.far).to(opts.device)
+        depths = self.depth_estimater.infer(
+            frames,
+            opts.near,
+            opts.far,
+            opts.depth_inference_steps,
+            opts.depth_guidance_scale,
+            window_size=opts.window_size,
+            overlap=opts.overlap,
+        ).to(opts.device)
+        frames = (
+            torch.from_numpy(frames).permute(0, 3, 1, 2).to(opts.device) * 2.0 - 1.0
+        )  # 49 576 1024 3 -> 49 3 576 1024, [-1,1]
+        assert frames.shape[0] == opts.video_length
+        pose_s, pose_t, K = self.get_poses(opts, depths, num_frames=opts.video_length)
+        warped_images = []
+        masks = []
+        for i in tqdm(range(opts.video_length)):
+            warped_frame2, mask2, warped_depth2, flow12 = self.funwarp.forward_warp(
+                frames[i : i + 1],
+                None,
+                depths[i : i + 1],
+                pose_s[i : i + 1],
+                pose_t[i : i + 1],
+                K[i : i + 1],
+                None,
+                opts.mask,
+                twice=False,
+            )
+            warped_images.append(warped_frame2)
+            masks.append(mask2)
+        cond_video = (torch.cat(warped_images) + 1.0) / 2.0
+        cond_masks = torch.cat(masks)
+
+        frames = F.interpolate(
+            frames, size=opts.sample_size, mode='bilinear', align_corners=False
+        )
+        cond_video = F.interpolate(
+            cond_video, size=opts.sample_size, mode='bilinear', align_corners=False
+        )
+        cond_masks = F.interpolate(cond_masks, size=opts.sample_size, mode='nearest')
+        save_video(
+            (frames.permute(0, 2, 3, 1) + 1.0) / 2.0,
+            os.path.join(opts.save_dir, 'input.mp4'),
+            fps=opts.fps,
+        )
+        save_video(
+            cond_video.permute(0, 2, 3, 1),
+            os.path.join(opts.save_dir, 'render.mp4'),
+            fps=opts.fps,
+        )
+        save_video(
+            cond_masks.repeat(1, 3, 1, 1).permute(0, 2, 3, 1),
+            os.path.join(opts.save_dir, 'mask.mp4'),
+            fps=opts.fps,
+        )
+
+        frames = (frames.permute(1, 0, 2, 3).unsqueeze(0) + 1.0) / 2.0
+        frames_ref = frames[:, :, :10, :, :]
+        cond_video = cond_video.permute(1, 0, 2, 3).unsqueeze(0)
+        cond_masks = (1.0 - cond_masks.permute(1, 0, 2, 3).unsqueeze(0)) * 255.0
+        generator = torch.Generator(device=opts.device).manual_seed(opts.seed)
+
+        return cond_video, cond_masks
+        
    

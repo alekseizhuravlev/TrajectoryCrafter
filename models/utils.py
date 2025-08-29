@@ -82,7 +82,7 @@ def sphere2pose(c2ws_input, theta, phi, r, device, x=None, y=None):
     c2ws = copy.deepcopy(c2ws_input)
     # c2ws[:,2, 3] = c2ws[:,2, 3] - radius
 
-    # 先沿着世界坐标系z轴方向平移再旋转
+    # Translate along the z-axis direction of the world coordinate system first and then rotate
     c2ws[:, 2, 3] -= r
     if x is not None:
         c2ws[:, 1, 3] += y
@@ -339,6 +339,8 @@ class Warper:
         )  # (b, h, w, 3, 1)
         
         # world_point = actual 3D points in world space
+        # trans_world = 3D points in camera space,  i.e. camera is at (0, 0, 0)
+        
         world_points = depth_4d * unnormalized_pos  # (b, h, w, 3, 1)
         world_points_homo = torch.cat([world_points, ones_4d], dim=3)  # (b, h, w, 4, 1)
         trans_world_homo = torch.matmul(trans_4d, world_points_homo)  # (b, h, w, 4, 1)

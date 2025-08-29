@@ -16,7 +16,10 @@ import trajectory_generation
 def setup_viser_scene(server, scene_data):
     """Setup static scene elements (trajectory and camera poses)"""
 
-    poses_np = scene_data['pose_target'].cpu().numpy()
+    poses_np_c2w = scene_data['pose_target'].cpu().numpy()
+    
+    poses_np = np.linalg.inv(poses_np_c2w)  # Convert to world-to-camera
+    
     positions = poses_np[:, :3, 3]
     
     # Add trajectory (static)
@@ -29,6 +32,7 @@ def setup_viser_scene(server, scene_data):
     
     # Add all camera poses (static)
     for i, pose in enumerate(poses_np[::2]):  # Every 2nd pose to reduce clutter
+
         position = pose[:3, 3]
         rotation_matrix = pose[:3, :3]
         
@@ -287,7 +291,11 @@ def update_trajectory_visualization(server, new_scene_data):
         print("Some trajectory elements not found, skipping removal.")
     
     # Add new trajectory
-    poses_np = new_scene_data['pose_target'].cpu().numpy()
+    poses_np_c2w = new_scene_data['pose_target'].cpu().numpy()
+    
+    # invert poses to get world-to-camera
+    poses_np = np.linalg.inv(poses_np_c2w)
+    
     positions = poses_np[:, :3, 3]
     
     # Add trajectory spline
@@ -319,6 +327,90 @@ def update_trajectory_visualization(server, new_scene_data):
     # Add new start/end markers
     server.scene.add_icosphere("/start", radius=0.1, position=positions[0], color=(0.0, 1.0, 0.0))
     server.scene.add_icosphere("/end", radius=0.1, position=positions[-1], color=(1.0, 0.0, 1.0))
+
+
+# def update_trajectory_visualization(server, new_scene_data):
+#     """Update trajectory visualization with relative transformations - no coordinate conversion"""
+    
+#     # Clear existing trajectory elements
+#     try:
+#         server.scene.remove("/trajectory")
+#         for i in range(50):
+#             try:
+#                 server.scene.remove(f"/camera_{i}")
+#             except:
+#                 break
+#         server.scene.remove("/start")
+#         server.scene.remove("/end")
+#     except:
+#         pass
+    
+#     # Get poses from scene data
+#     pose_source = new_scene_data['pose_source'].cpu().numpy()  # Reference/anchor poses
+#     pose_target = new_scene_data['pose_target'].cpu().numpy()  # Target trajectory poses
+    
+#     # Compute relative transformations: pose_source^(-1) * pose_target
+#     relative_poses = []
+    
+#     for i in range(len(pose_target)):
+#         # Invert source pose and multiply with target pose
+#         pose_src_inv = np.linalg.inv(pose_source[i])
+#         relative_pose = pose_src_inv @ pose_target[i]
+#         relative_poses.append(relative_pose)
+    
+#     relative_poses = np.array(relative_poses)
+    
+#     # Extract positions from relative transformations (no coordinate conversion)
+#     positions = relative_poses[:, :3, 3]
+    
+#     # Add trajectory spline using raw relative positions
+#     server.scene.add_spline_catmull_rom(
+#         "/trajectory", 
+#         positions=positions, 
+#         color=(1.0, 0.0, 0.0), 
+#         line_width=3.0
+#     )
+    
+#     # Add camera frustums for relative poses (every 2nd to reduce clutter)
+#     for i, relative_pose in enumerate(relative_poses[::2]):
+#         position = relative_pose[:3, 3]
+#         rotation_matrix = relative_pose[:3, :3]
+        
+#         # Use raw rotation matrix without coordinate transformation
+#         wxyz = viser.transforms.SO3.from_matrix(rotation_matrix).wxyz
+        
+#         try:
+#             server.scene.add_camera_frustum(
+#                 f"/camera_{i}",
+#                 fov=60, aspect=16/9, scale=0.15,
+#                 position=position, wxyz=wxyz,
+#                 color=(0.8, 0.2, 0.2)
+#             )
+#         except:
+#             # If rotation fails, just show position as sphere
+#             server.scene.add_icosphere(
+#                 f"/camera_{i}",
+#                 radius=0.05,
+#                 position=position,
+#                 color=(0.8, 0.2, 0.2)
+#             )
+    
+#     # Add start/end markers using raw positions
+#     server.scene.add_icosphere("/start", radius=0.1, position=positions[0], color=(0.0, 1.0, 0.0))
+#     server.scene.add_icosphere("/end", radius=0.1, position=positions[-1], color=(1.0, 0.0, 1.0))
+    
+#     print(f"Relative trajectory updated with {len(positions)} points")
+#     print(f"Relative start position: {positions[0]}")
+#     print(f"Relative end position: {positions[-1]}")
+#     print(f"Relative movement range:")
+#     print(f"  X: {positions[:, 0].min():.3f} to {positions[:, 0].max():.3f}")
+#     print(f"  Y: {positions[:, 1].min():.3f} to {positions[:, 1].max():.3f}")
+#     print(f"  Z: {positions[:, 2].min():.3f} to {positions[:, 2].max():.3f}")
+
+
+
+
+
 
 # Predefined trajectory presets
 TRAJECTORY_PRESETS = {

@@ -3,3 +3,4 @@ __pycache__
 .idea
 experiments/
 checkpoints/
+*.mp4
