@@ -45,6 +45,17 @@ class TrajCrafter:
         frames = read_video_frames(
             opts.video_path, opts.video_length, opts.stride, opts.max_res
         )
+        # if frames.shape[0]<opts.video_length:
+        # pad with last frame
+        if frames.shape[0] < opts.video_length:
+            last_frame = frames[-1:]
+            num_pad = opts.video_length - frames.shape[0]
+            pad_frames = np.repeat(last_frame, num_pad, axis=0)
+            frames = np.concatenate([frames, pad_frames], axis=0)
+            print(
+                f"Input video has only {frames.shape[0]} frames, padding with last frame to {opts.video_length} frames."
+            )
+        
         prompt = self.get_caption(opts, frames[opts.video_length // 2])
         # depths= self.depth_estimater.infer(frames, opts.near, opts.far).to(opts.device)
         depths = self.depth_estimater.infer(
@@ -146,7 +157,7 @@ class TrajCrafter:
             tensor_left = frames[0].to(opts.device)
             tensor_right = sample[0].to(opts.device)
             interval = torch.ones(3, 49, 384, 30).to(opts.device)
-            result = torch.cat((tensor_left, interval, tensor_right), dim=3)
+            resault = torch.cat((tensor_left, interval, tensor_right), dim=3)
             result_reverse = torch.flip(result, dims=[1])
             final_result = torch.cat((result, result_reverse[:, 1:, :, :]), dim=1)
             save_video(
@@ -160,6 +171,16 @@ class TrajCrafter:
         frames = read_video_frames(
             opts.video_path, opts.video_length, opts.stride, opts.max_res
         )
+        # pad with last frame
+        if frames.shape[0] < opts.video_length:
+            last_frame = frames[-1:]
+            num_pad = opts.video_length - frames.shape[0]
+            pad_frames = np.repeat(last_frame, num_pad, axis=0)
+            frames = np.concatenate([frames, pad_frames], axis=0)
+            print(
+                f"Input video has only {frames.shape[0]} frames, padding with last frame to {opts.video_length} frames."
+            )
+        
         prompt = self.get_caption(opts, frames[opts.video_length // 2])
         # depths= self.depth_estimater.infer(frames, opts.near, opts.far).to(opts.device)
         depths = self.depth_estimater.infer(
@@ -238,9 +259,9 @@ class TrajCrafter:
         cond_masks = (1.0 - cond_masks.permute(1, 0, 2, 3).unsqueeze(0)) * 255.0
         generator = torch.Generator(device=opts.device).manual_seed(opts.seed)
 
-        del self.depth_estimater
-        del self.caption_processor
-        del self.captioner
+        # del self.depth_estimater
+        # del self.caption_processor
+        # del self.captioner
         gc.collect()
         torch.cuda.empty_cache()
         with torch.no_grad():
@@ -253,8 +274,8 @@ class TrajCrafter:
                 generator=generator,
                 guidance_scale=opts.diffusion_guidance_scale,
                 num_inference_steps=opts.diffusion_inference_steps,
-                video=cond_video,
-                mask_video=cond_masks,
+                video=cond_video.to(opts.device),
+                mask_video=cond_masks.to(opts.device),
                 reference=frames_ref,
             ).videos
         save_video(
@@ -554,10 +575,10 @@ class TrajCrafter:
             poses = generate_traj_txt(c2w_init, phi, theta, r, num_frames, opts.device)
             
             
-        print('get_poses(), poses', poses)
+        # print('get_poses(), poses', poses)
         poses[:, 2, 3] = poses[:, 2, 3] + radius
         
-        print('get_poses(), poses[:, 2, 3] + radius', poses)
+        # print('get_poses(), poses[:, 2, 3] + radius', poses)
         
         pose_s = poses[opts.anchor_idx : opts.anchor_idx + 1].repeat(num_frames, 1, 1)
         pose_t = poses

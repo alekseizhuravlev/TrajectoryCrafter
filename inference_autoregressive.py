@@ -1,10 +1,22 @@
-from demo import TrajCrafter
+"""
+Autoregressive trajectory generation for large camera movements
+"""
+
+# from demo import TrajCrafter
 import os
 from datetime import datetime
 import argparse
 import torch
 import copy
 import time
+import sys
+import tempfile
+from pathlib import Path
+
+
+# Add core.py to path if needed
+sys.path.append('/home/azhuravl/work/TrajectoryCrafter/notebooks/28_08_25_trajectories')
+from core_autoregressive import TrajCrafterAutoregressive
 
 
 def get_parser():
@@ -13,7 +25,7 @@ def get_parser():
     ## general
     parser.add_argument('--video_path', type=str, help='Input path')
     parser.add_argument(
-        '--out_dir', type=str, default=f'./experiments/{datetime.now().strftime("%d-%m-%Y")}/', help='Output dir'
+        '--out_dir', type=str, default='./experiments/', help='Output dir'
     )
     parser.add_argument(
         '--device', type=str, default='cuda:0', help='The device to use'
@@ -36,6 +48,26 @@ def get_parser():
     )
     parser.add_argument('--server_name', type=str, help='Server IP address')
 
+    ## autoregressive specific
+    parser.add_argument(
+        '--n_splits', 
+        type=int, 
+        default=4, 
+        help='Number of parts to split trajectory into'
+    )
+    parser.add_argument(
+        '--overlap_frames', 
+        type=int, 
+        default=8, 
+        help='Number of frames to overlap between segments'
+    )
+    parser.add_argument(
+        '--test_run',
+        action='store_true',
+        default=False,
+        help='Run only the right_180 trajectory for testing'
+    )
+
     ## render
     parser.add_argument(
         '--radius_scale',
@@ -43,12 +75,12 @@ def get_parser():
         default=1.0,
         help='Scale factor for the spherical radius',
     )
-    parser.add_argument('--camera', type=str, default='traj', help='traj or target')
+    parser.add_argument('--camera', type=str, default='target', help='traj or target')
     parser.add_argument(
         '--mode', type=str, default='gradual', help='gradual, bullet or direct'
     )
     parser.add_argument(
-        '--mask', action='store_true', default=False, help='Clean the pcd if true'
+        '--mask', action='store_true', default=True, help='Clean the pcd if true'
     )
     parser.add_argument(
         '--traj_txt',
@@ -77,12 +109,6 @@ def get_parser():
         help='Enable low GPU memory mode',
     )
     parser.add_argument('--model_name', type=str, default='checkpoints/CogVideoX-Fun-V1.1-5b-InP', help='Path to the model')
-    # parser.add_argument(
-    #     '--model_name',
-    #     type=str,
-    #     default='alibaba-pai/CogVideoX-Fun-V1.1-5b-InP',
-    #     help='Path to the model',
-    # )
     parser.add_argument(
         '--sampler_name',
         type=str,
@@ -90,7 +116,6 @@ def get_parser():
         default='DDIM_Origin',
         help='Choose the sampler',
     )
-    # parser.add_argument('--transformer_path', type=str, default='checkpoints/TrajectoryCrafter/crosstransformer', help='Path to the pretrained transformer model')
     parser.add_argument(
         '--transformer_path',
         type=str,
@@ -134,15 +159,12 @@ def get_parser():
     parser.add_argument('--blip_path', type=str, default="checkpoints/blip2-opt-2.7b")
 
     ## depth
-    # parser.add_argument('--unet_path', type=str, default='checkpoints/DepthCrafter', help='Path to the UNet model')
     parser.add_argument(
         '--unet_path',
         type=str,
         default="checkpoints/DepthCrafter",
         help='Path to the UNet model',
     )
-
-    # parser.add_argument('--pre_train_path', type=str, default='checkpoints/stable-video-diffusion-img2vid-xt', help='Path to the pre-trained model')
     parser.add_argument(
         '--pre_train_path',
         type=str,
@@ -152,7 +174,6 @@ def get_parser():
     parser.add_argument(
         '--cpu_offload', type=str, 
         default='model', 
-        # default='none', 
         help='CPU offload strategy'
     )
     parser.add_argument(
@@ -179,38 +200,11 @@ def get_parser():
         default=1.0,
         help='Radius for camera orbit motions',
     )
-    
-    parser.add_argument(
-        '--test_run',
-        action='store_true',
-        default=False,
-        help='Run only the right_90 trajectory for testing'
-    )
 
     return parser
 
 
 if __name__ == "__main__":
-    # parser = get_parser()  # infer config.py
-    # opts = parser.parse_args()
-    # opts.weight_dtype = torch.bfloat16
-    # if opts.exp_name == None:
-    #     prefix = datetime.now().strftime("%Y%m%d_%H%M")
-    #     opts.exp_name = (
-    #         f'{os.path.splitext(os.path.basename(opts.video_path))[0]}_{prefix}'
-    #     )
-    # opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
-    # os.makedirs(opts.save_dir, exist_ok=True)
-    # pvd = TrajCrafter(opts)
-    # if opts.mode == 'gradual':
-    #     pvd.infer_gradual(opts)
-    # elif opts.mode == 'direct':
-    #     pvd.infer_direct(opts)
-    # elif opts.mode == 'bullet':
-    #     pvd.infer_bullet(opts)
-    # elif opts.mode == 'zoom':
-    #     pvd.infer_zoom(opts)
-    
     import torch, os
     print("CUDA available:", torch.cuda.is_available())
     print("Torch version:", torch.__version__)
@@ -219,76 +213,80 @@ if __name__ == "__main__":
     print("GPU:", torch.cuda.get_device_name(0))
     print("SLURM node:", os.environ.get("SLURMD_NODENAME"))
 
-    
     parser = get_parser()
     opts_base = parser.parse_args()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     video_basename = os.path.splitext(os.path.basename(opts_base.video_path))[0]
 
-    # Shared model instance
+    # Setup
     opts_base.weight_dtype = torch.bfloat16
-    opts_base.exp_name = f"{video_basename}_{timestamp}_sharedload"
+    opts_base.exp_name = f"{video_basename}_{timestamp}_autoregressive"
     opts_base.save_dir = os.path.join(opts_base.out_dir, opts_base.exp_name)
-    # os.makedirs(opts_base.save_dir, exist_ok=True)
 
-    crafter = TrajCrafter(opts_base)
-
+    # Create TrajCrafterVisualization instance for autoregressive generation
+    vis_crafter = TrajCrafterAutoregressive(opts_base)
 
     radius = opts_base.radius
 
+
     if opts_base.test_run:
-        print("🧪 TEST RUN MODE: Running only right_90 trajectory")
+        print("🧪 TEST RUN MODE: Running only one trajectory")
         variants = [
             ("right_90", [0, 90, radius, 0, 0]),
         ]
     else:
         print("🎬 FULL RUN MODE: Running all trajectories")
         variants = [
-            # add left right top 45
-            ("left_-45",    [0, -45, radius, 0, 0]),
-            ("right_45",    [0, 45, radius, 0, 0]),
-            ("top_45",      [45, 0, radius, 0, 0]),
-            
             ("left_-90",     [0, -90, radius, 0, 0]),
             ("right_90",     [0, 90, radius, 0, 0]),
             ("top_90",       [90, 0, radius, 0, 0]),
-            
-            # ("right_180",    [0, 180, radius, 0, 0]),
-            # ("left_-180",    [0, -180, radius, 0, 0]),
-            # ("top_180",      [180, 0, radius, 0, 0]),
-            
-            # ("left_-360",    [0, -360, radius, 0, 0]),
-            # ("right_360",    [0, 360, radius, 0, 0]),
+            ("right_180",    [0, 180, radius, 0, 0]),
+            ("left_-180",    [0, -180, radius, 0, 0]),
+            ("top_180",      [180, 0, radius, 0, 0]),
+            ("left_-360",    [0, -360, radius, 0, 0]),
+            ("right_360",    [0, 360, radius, 0, 0]),
         ]
 
-    print(f"Will run {len(variants)} trajectory variant(s)")
-
+    print(f"Will run {len(variants)} large trajectory variant(s)")
+    print(f"Autoregressive settings: {opts_base.n_splits} splits, {opts_base.overlap_frames} overlap frames")
 
     for name, pose in variants:
-        print(f"\n=== Running {name} ===")
+        print(f"\n=== Running Autoregressive {name} ===")
         opts = copy.deepcopy(opts_base)
-        opts.exp_name = f"{video_basename}_{timestamp}_{name}_r{radius}_{opts.mode}"
+        opts.exp_name = f"{video_basename}_{timestamp}_{name}_auto_s{opts_base.n_splits}"
         opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
         opts.camera = "target"
-        # opts.mode = "gradual"
+        opts.mode = "gradual"
         opts.mask = True
         opts.target_pose = pose
         opts.traj_txt = 'test/trajs/loop2.txt'
 
-        # make directories
+        # Make directories
         os.makedirs(opts.save_dir, exist_ok=True)
+
+        print(f"Target trajectory: θ={pose[0]}°, φ={pose[1]}°, r={pose[2]}, dx={pose[3]}, dy={pose[4]}")
+        print(f"Output dir: {opts.save_dir}")
 
         start_time = time.time()
 
-        if opts.mode == 'gradual':
-            crafter.infer_gradual(opts)
-        elif opts.mode == 'direct':
-            crafter.infer_direct(opts)
-        elif opts.mode == 'bullet':
-            crafter.infer_bullet(opts)
-        elif opts.mode == 'zoom':
-            crafter.infer_zoom(opts)
+        try:
+            # Use autoregressive generation for large trajectories
+            final_video = vis_crafter.infer_autoregressive(
+                opts, 
+                n_splits=opts_base.n_splits,
+                overlap_frames=opts_base.overlap_frames
+            )
             
-        elapsed = time.time() - start_time
-        print(f"Finished {name} in {elapsed:.2f} seconds")
+            elapsed = time.time() - start_time
+            print(f"✅ Finished {name} in {elapsed:.2f} seconds")
+            print(f"Final video: {final_video}")
+            
+        except Exception as e:
+            elapsed = time.time() - start_time
+            print(f"❌ Error in {name} after {elapsed:.2f} seconds: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+
+    print(f"\n🎉 Autoregressive generation complete for {len(variants)} variant(s)!")

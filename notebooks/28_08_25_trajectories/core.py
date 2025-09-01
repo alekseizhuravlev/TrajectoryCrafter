@@ -200,4 +200,4 @@ class TrajCrafterVisualization(TrajCrafter):
 
         return cond_video, cond_masks
         
-   
+

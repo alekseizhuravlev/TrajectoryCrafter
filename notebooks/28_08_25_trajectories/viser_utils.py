@@ -57,7 +57,7 @@ def setup_viser_scene(server, scene_data):
     server.scene.add_frame("/world", axes_length=0.5, position=(0, 0, 0), wxyz=(1, 0, 0, 0))
 
 
-def animate_frame(server, vis_warper, scene_data, frame_idx, max_points=5000):
+def animate_frame(server, vis_warper, scene_data, frame_idx, max_points=10000):
     """Update only the point cloud for given frame"""
     # Clear previous frame
     try:
@@ -77,7 +77,7 @@ def animate_frame(server, vis_warper, scene_data, frame_idx, max_points=5000):
     points_3d, colors_rgb = vis_warper.extract_3d_points_with_colors(
         frame_data['frame'], frame_data['depth'], 
         frame_data['pose_source'], frame_data['intrinsics'],
-        subsample_step=15
+        subsample_step=5
     )
     
     if points_3d.shape[0] > 0:
@@ -102,7 +102,12 @@ def animate_frame(server, vis_warper, scene_data, frame_idx, max_points=5000):
         )
         
         # Highlight current camera
-        pos = scene_data['pose_target'][frame_idx, :3, 3].cpu().numpy()
+        # this is w2c, get c2w
+        # pos = scene_data['pose_target'][frame_idx, :3, 3].cpu().numpy()
+        
+        pose_c2w = np.linalg.inv(scene_data['pose_target'][frame_idx].cpu().numpy())
+        pos = pose_c2w[:3, 3]
+        
         server.scene.add_icosphere(
             "/current_camera", 
             radius=0.08, 
@@ -440,7 +445,7 @@ def add_trajectory_controls(server, scene_data, vis_crafter, opts_base):
         
         # Custom controls
         with client.gui.add_folder("Custom Trajectory"):
-            theta_input = client.gui.add_slider("Theta", min=-90, max=90, step=1, initial_value=0)
+            theta_input = client.gui.add_slider("Theta", min=-180, max=180, step=1, initial_value=0)
             phi_input = client.gui.add_slider("Phi", min=-360, max=360, step=5, initial_value=90)
             dr_input = client.gui.add_slider("Distance", min=-3, max=3, step=0.1, initial_value=1.0)
             dx_input = client.gui.add_slider("X offset", min=-2, max=2, step=0.1, initial_value=0.0)
