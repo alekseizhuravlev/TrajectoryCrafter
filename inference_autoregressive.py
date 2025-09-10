@@ -257,7 +257,7 @@ if __name__ == "__main__":
         opts.exp_name = f"{video_basename}_{timestamp}_{name}_auto_s{opts_base.n_splits}"
         opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
         opts.camera = "target"
-        opts.mode = "gradual"
+        # opts.mode = "gradual"
         opts.mask = True
         opts.target_pose = pose
         opts.traj_txt = 'test/trajs/loop2.txt'

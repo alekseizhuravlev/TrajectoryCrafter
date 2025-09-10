@@ -113,6 +113,13 @@ class TrajCrafterAutoregressive(TrajCrafter):
         # Get poses with continuation
         pose_s, pose_t = self._get_poses_with_continuation(opts, depths, previous_poses, segment_idx)
         
+        # if opt.direct == True, only use the last target pose
+        if opts.mode == "direct":
+            pose_t = pose_t[-1:].repeat(opts.video_length, 1, 1)
+            
+        # print the shape of poses_t
+        # print(f"Pose_t shape: {pose_t.shape}")
+        
         # Continue with standard warping and generation...
         K = self._get_intrinsics(opts, depths)
         warped_images, masks = self._warp_frames(frames, depths, pose_s, pose_t, K, opts)

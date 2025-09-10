@@ -60,19 +60,20 @@ if [ ! -f "$video_path" ]; then
 fi
 
 # Run the inference
-python inference_orbits.py \
-    --video_path "$video_path" \
-    --radius $radius \
-    --mode direct \
+# python inference_orbits.py \
+#     --video_path "$video_path" \
+#     --radius $radius \
+#     --mode direct \
     # --test_run \
 
 
-# python inference_autoregressive.py \
-#     --video_path "$video_path" \
-#     --n_splits 20 \
-#     --overlap_frames 0 \
-#     --test_run \
-#     --radius $radius 
+python inference_autoregressive.py \
+    --video_path "$video_path" \
+    --n_splits 4 \
+    --overlap_frames 0 \
+    --test_run \
+    --radius $radius  \
+    --mode direct 
 
 # python notebooks/28_08_25_trajectories/test_autoregressive.py
 
