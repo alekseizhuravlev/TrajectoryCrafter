@@ -10,6 +10,7 @@ import sys
 # Add MVTracker to path
 sys.path.append('/home/azhuravl/work/mvtracker')
 from mvtracker.datasets.panoptic_studio_multiview_dataset import PanopticStudioMultiViewDataset
+from mvtracker.datasets.kubric_multiview_dataset import KubricMultiViewDataset
 
 class CameraPoseTrajCrafter(TrajCrafter):
     def __init__(self, opts, gradio=False):
@@ -139,15 +140,32 @@ class CameraPoseTrajCrafter(TrajCrafter):
         
         # Initialize MVTracker dataset with specific views
         print("==> initializing MVTracker dataset...")
-        dataset = PanopticStudioMultiViewDataset(
-            '/home/azhuravl/nobackup/mvtracker_data/datasets/panoptic-multiview',
-            traj_per_sample=384, 
-            seed=72,
-            max_videos=1, 
-            perform_sanity_checks=False, 
-            views_to_return=[source_view_idx, target_view_idx],  # Select specific views
-            use_duster_depths=False, 
-            clean_duster_depths=False,
+        # dataset = PanopticStudioMultiViewDataset(
+        #     '/home/azhuravl/nobackup/mvtracker_data/datasets/panoptic-multiview',
+        #     traj_per_sample=384, 
+        #     seed=72,
+        #     max_videos=100, 
+        #     perform_sanity_checks=False, 
+        #     views_to_return=[source_view_idx, target_view_idx],  # Select specific views
+        #     use_duster_depths=False, 
+        #     clean_duster_depths=False,
+        # )
+        
+        dataset = KubricMultiViewDataset(
+            data_root = '/home/azhuravl/nobackup/mvtracker_data/datasets/kubric-multiview/test',
+            seq_len = 24,
+            traj_per_sample = 200,
+            seed = 72,
+            sample_vis_1st_frame = True,
+            tune_per_scene = False,
+            max_videos = 100,
+            use_duster_depths = False,
+            duster_views = None,
+            clean_duster_depths = False,
+            views_to_return = [source_view_idx, target_view_idx],  # Select specific views
+            # novel_views = [20, 21],
+            num_views = -1,
+            depth_noise_std = 0,
         )
         
         # Get first sample
@@ -397,9 +415,9 @@ def run_mvtracker_inference(source_view_idx=0, target_view_idx=1, output_dir="./
             self.weight_dtype = torch.bfloat16
             
             # Output
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            timestamp = datetime.now().strftime("%H%M")
             date = datetime.now().strftime("%d-%m-%Y")
-            self.exp_name = f"mvtracker_{source_view_idx}to{target_view_idx}_{timestamp}"
+            self.exp_name = f"{timestamp}_mvtracker_{source_view_idx}to{target_view_idx}"
             self.save_dir = f"./experiments/{date}/{self.exp_name}"
             
             # Diffusion
@@ -438,4 +456,7 @@ def run_mvtracker_inference(source_view_idx=0, target_view_idx=1, output_dir="./
 
 if __name__ == "__main__":
     # Run with different view combinations
-    result = run_mvtracker_inference(source_view_idx=2, target_view_idx=7)
+    result = run_mvtracker_inference(
+        source_view_idx=4,
+        target_view_idx=5
+        )

@@ -12,8 +12,6 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 from models.infer import DepthCrafterDemo
-import inference_orbits
-
 
 
 class TrajCrafterAutoregressive(TrajCrafter):

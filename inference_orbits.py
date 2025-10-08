@@ -240,19 +240,25 @@ if __name__ == "__main__":
     if opts_base.test_run:
         print("🧪 TEST RUN MODE: Running only right_90 trajectory")
         variants = [
-            ("right_90", [0, 90, radius, 0, 0]),
+            # ("right_90", [0, 90, radius, 0, 0]),
+            ("still", [0, 0, radius, 0, 0]),
         ]
     else:
         print("🎬 FULL RUN MODE: Running all trajectories")
         variants = [
-            # add left right top 45
+            # add left right top 30
+            # ("still",       [0, 0, radius, 0, 0]),
+            ("left_-30",    [0, -30, radius, 0, 0]),
+            ("right_30",    [0, 30, radius, 0, 0]),
+            ("top_30",      [30, 0, radius, 0, 0]),
+            
             ("left_-45",    [0, -45, radius, 0, 0]),
             ("right_45",    [0, 45, radius, 0, 0]),
             ("top_45",      [45, 0, radius, 0, 0]),
             
             ("left_-90",     [0, -90, radius, 0, 0]),
             ("right_90",     [0, 90, radius, 0, 0]),
-            ("top_90",       [90, 0, radius, 0, 0]),
+            # ("top_90",       [90, 0, radius, 0, 0]),
             
             # ("right_180",    [0, 180, radius, 0, 0]),
             # ("left_-180",    [0, -180, radius, 0, 0]),

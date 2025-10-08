@@ -1,26 +1,14 @@
 """
-Autoregressive trajectory generation for large camera movements
+Argument parser for TrajectoryCrafter autoregressive inference
 """
 
-# from demo import TrajCrafter
-import os
-from datetime import datetime
 import argparse
-import torch
-import copy
-import time
-import sys
-import tempfile
-from pathlib import Path
-
-
-# Add core.py to path if needed
-sys.path.append('/home/azhuravl/work/TrajectoryCrafter/notebooks/28_08_25_trajectories')
-from core_autoregressive import TrajCrafterAutoregressive
+from datetime import datetime
 
 
 def get_parser():
-    parser = argparse.ArgumentParser()
+    """Create and return argument parser for autoregressive trajectory generation"""
+    parser = argparse.ArgumentParser(description="Autoregressive trajectory generation for large camera movements")
 
     ## general
     parser.add_argument('--video_path', type=str, help='Input path')
@@ -58,7 +46,7 @@ def get_parser():
     parser.add_argument(
         '--overlap_frames', 
         type=int, 
-        default=8, 
+        default=0, 
         help='Number of frames to overlap between segments'
     )
     parser.add_argument(
@@ -200,101 +188,6 @@ def get_parser():
         default=1.0,
         help='Radius for camera orbit motions',
     )
+    
 
     return parser
-
-
-if __name__ == "__main__":
-    import torch, os
-    print("CUDA available:", torch.cuda.is_available())
-    print("Torch version:", torch.__version__)
-    print("CUDA version:", torch.version.cuda)
-    print("cuDNN version:", torch.backends.cudnn.version())
-    print("GPU:", torch.cuda.get_device_name(0))
-    print("SLURM node:", os.environ.get("SLURMD_NODENAME"))
-
-    parser = get_parser()
-    opts_base = parser.parse_args()
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    video_basename = os.path.splitext(os.path.basename(opts_base.video_path))[0]
-
-    # Setup
-    opts_base.weight_dtype = torch.bfloat16
-    opts_base.exp_name = f"{video_basename}_{timestamp}_autoregressive"
-    opts_base.save_dir = os.path.join(opts_base.out_dir, opts_base.exp_name)
-
-    # Create TrajCrafterVisualization instance for autoregressive generation
-    vis_crafter = TrajCrafterAutoregressive(opts_base)
-
-    radius = opts_base.radius
-
-
-    if opts_base.test_run:
-        print("🧪 TEST RUN MODE: Running only one trajectory")
-        variants = [
-            ("right_90", [0, 90, radius, 0, 0]),
-        ]
-    else:
-        print("🎬 FULL RUN MODE: Running all trajectories")
-        variants = [
-            
-            # add 30
-            # ("front",        [0, 0, radius, 0, 0]),
-            ("left_-30",     [0, -30, radius, 0, 0]),
-            ("right_30",     [0, 30, radius, 0, 0]),
-            ("top_30",       [30, 0, radius, 0, 0]),
-            
-            ("left_-90",     [0, -90, radius, 0, 0]),
-            ("right_90",     [0, 90, radius, 0, 0]),
-            ("top_90",       [90, 0, radius, 0, 0]),
-            
-            ("left_-180",    [0, -180, radius, 0, 0]),
-            ("right_180",    [0, 180, radius, 0, 0]),
-            # ("top_180",      [180, 0, radius, 0, 0]),
-            # ("left_-360",    [0, -360, radius, 0, 0]),
-            # ("right_360",    [0, 360, radius, 0, 0]),
-        ]
-
-    print(f"Will run {len(variants)} large trajectory variant(s)")
-    print(f"Autoregressive settings: {opts_base.n_splits} splits, {opts_base.overlap_frames} overlap frames")
-
-    for name, pose in variants:
-        print(f"\n=== Running Autoregressive {name} ===")
-        opts = copy.deepcopy(opts_base)
-        opts.exp_name = f"{video_basename}_{timestamp}_{name}_auto_s{opts_base.n_splits}"
-        opts.save_dir = os.path.join(opts.out_dir, opts.exp_name)
-        opts.camera = "target"
-        # opts.mode = "gradual"
-        opts.mask = True
-        opts.target_pose = pose
-        opts.traj_txt = 'test/trajs/loop2.txt'
-
-        # Make directories
-        os.makedirs(opts.save_dir, exist_ok=True)
-
-        print(f"Target trajectory: θ={pose[0]}°, φ={pose[1]}°, r={pose[2]}, dx={pose[3]}, dy={pose[4]}")
-        print(f"Output dir: {opts.save_dir}")
-
-        start_time = time.time()
-
-        try:
-            # Use autoregressive generation for large trajectories
-            final_video = vis_crafter.infer_autoregressive(
-                opts, 
-                n_splits=opts_base.n_splits,
-                overlap_frames=opts_base.overlap_frames
-            )
-            
-            elapsed = time.time() - start_time
-            print(f"✅ Finished {name} in {elapsed:.2f} seconds")
-            print(f"Final video: {final_video}")
-            
-        except Exception as e:
-            elapsed = time.time() - start_time
-            print(f"❌ Error in {name} after {elapsed:.2f} seconds: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
-
-    print(f"\n🎉 Autoregressive generation complete for {len(variants)} variant(s)!")

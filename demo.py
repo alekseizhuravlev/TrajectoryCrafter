@@ -157,7 +157,7 @@ class TrajCrafter:
             tensor_left = frames[0].to(opts.device)
             tensor_right = sample[0].to(opts.device)
             interval = torch.ones(3, 49, 384, 30).to(opts.device)
-            resault = torch.cat((tensor_left, interval, tensor_right), dim=3)
+            result = torch.cat((tensor_left, interval, tensor_right), dim=3)
             result_reverse = torch.flip(result, dims=[1])
             final_result = torch.cat((result, result_reverse[:, 1:, :, :]), dim=1)
             save_video(
@@ -541,6 +541,7 @@ class TrajCrafter:
             * opts.radius_scale
         )
         radius = min(radius, 5)
+        
         cx = 512.0  # depths.shape[-1]//2
         cy = 288.0  # depths.shape[-2]//2
         f = 500  # 500.
