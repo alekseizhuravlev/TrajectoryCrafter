@@ -131,6 +131,10 @@ def sphere2pose(c2ws_input, theta, phi, r, device, x=None, y=None):
 
 def generate_traj_specified(c2ws_anchor, theta, phi, d_r, d_x, d_y, frame, device):
     # Initialize a camera.
+    
+    # ANCHOR SHOULD START AT RADIUS, NOT AT 0
+    # OTHERWISE A FLAT IMAGE WILL BE GENERATED
+    
     thetas = np.linspace(0, theta, frame)
     phis = np.linspace(0, phi, frame)
     rs = np.linspace(0, d_r, frame)

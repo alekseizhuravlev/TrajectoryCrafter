@@ -78,8 +78,8 @@ class VisualizationWarper(Warper):
         
         return points_3d, colors_rgb
     
-    
-    def render_pointcloud_native(
+
+    def render_pointcloud_native_v2(
         self,
         points_3d: torch.Tensor,
         colors_3d: torch.Tensor,
@@ -89,174 +89,76 @@ class VisualizationWarper(Warper):
         mask: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        Native point cloud rendering using scatter operations, designed for sparse point data.
-        
-        Args:
-            points_3d: (N, 3) 3D points in world coordinates
-            colors_3d: (N, 3) RGB colors for each point [-1, 1] range
-            transformation_target: (b, 4, 4) target camera extrinsic matrix
-            intrinsic_target: (b, 3, 3) target camera intrinsic matrix
-            image_size: (height, width) output image size
-            mask: whether to clean rendered points
-            
-        Returns:
-            rendered_frame: (b, 3, h, w) rendered image in [-1, 1] range
-            rendered_mask: (b, 1, h, w) validity mask
+        Render point cloud by creating synthetic depth/frame and using forward_warp
         """
+        
+        print("using warper v2!!!")
+        
         h, w = image_size
         b = transformation_target.shape[0]
         device = self.device
         
-        # Ensure tensors are on correct device and dtype
-        points_3d = points_3d.to(device).to(self.dtype)
-        colors_3d = colors_3d.to(device).to(self.dtype)
-        transformation_target = transformation_target.to(device).to(self.dtype)
-        intrinsic_target = intrinsic_target.to(device).to(self.dtype)
+        # Create a synthetic source frame with our point cloud data
+        source_frame = torch.full((b, 3, h, w), -1.0, device=device, dtype=self.dtype)
+        source_depth = torch.zeros(b, 1, h, w, device=device, dtype=self.dtype)
+        source_mask = torch.zeros(b, 1, h, w, device=device, dtype=self.dtype)
         
-        # print(points_3d.device)
-        # print(colors_3d.device)
+        # Project world points to source camera (identity transformation)
+        identity_transform = torch.eye(4, device=device, dtype=self.dtype).unsqueeze(0).repeat(b, 1, 1)
         
-        # Step 1: Transform world points to target camera coordinates
-        # Use the same transformation logic as compute_transformed_points
-        transformation = transformation_target  # Already in target camera frame
-        transformation_inv = torch.linalg.inv(transformation)  # World to camera
-        
-        # Convert to homogeneous coordinates
+        # Convert world points to camera coordinates for the source view
         ones = torch.ones(points_3d.shape[0], 1, device=device, dtype=self.dtype)
-        points_homo = torch.cat([points_3d, ones], dim=1)  # (N, 4)
+        world_points_homo = torch.cat([points_3d, ones], dim=1)
         
-        # Transform to camera coordinates (same logic as compute_transformed_points)
-        camera_points_homo = torch.matmul(transformation_inv[0], points_homo.T).T  # (N, 4)
-        camera_points = camera_points_homo[:, :3]  # (N, 3)
+        # For source camera, we can use identity or extract the original transformation
+        # Let's assume we're rendering from an identity camera position
+        camera_points = points_3d  # For identity camera position
         
-        # Step 2: Filter points behind camera (same as original)
-        valid_depth_mask = camera_points[:, 2] > 0.01
-        valid_camera_points = camera_points[valid_depth_mask]
-        valid_colors = colors_3d[valid_depth_mask]
+        # Project to 2D
+        projected_homo = torch.matmul(intrinsic_target[0], camera_points.T).T
+        pixel_coords = projected_homo[:, :2] / projected_homo[:, 2:3]
+        depths_vals = camera_points[:, 2]
         
-        if valid_camera_points.shape[0] == 0:
+        # Filter valid points
+        valid_mask = (depths_vals > 0.01) & \
+                    (pixel_coords[:, 0] >= 0) & (pixel_coords[:, 0] < w) & \
+                    (pixel_coords[:, 1] >= 0) & (pixel_coords[:, 1] < h)
+        
+        if valid_mask.sum() == 0:
             return (torch.full((b, 3, h, w), -1.0, device=device, dtype=self.dtype),
                     torch.zeros(b, 1, h, w, device=device, dtype=self.dtype))
         
-        # Step 3: Project to 2D (same as compute_transformed_points)
-        projected_homo = torch.matmul(intrinsic_target[0], valid_camera_points.T).T  # (N, 3)
-        pixel_coords = projected_homo[:, :2] / projected_homo[:, 2:3]  # (N, 2)
-        depths = valid_camera_points[:, 2]  # (N,)
+        valid_coords = pixel_coords[valid_mask]
+        valid_colors = colors_3d[valid_mask]
+        valid_depths = depths_vals[valid_mask]
         
-        # Step 4: Filter points within image bounds
-        x_coords = pixel_coords[:, 0]
-        y_coords = pixel_coords[:, 1]
-        in_bounds_mask = ((x_coords >= 0) & (x_coords < w) & 
-                         (y_coords >= 0) & (y_coords < h))
+        # Fill source frame/depth with our data
+        x_int = torch.clamp(torch.round(valid_coords[:, 0]).long(), 0, w-1)
+        y_int = torch.clamp(torch.round(valid_coords[:, 1]).long(), 0, h-1)
         
-        final_coords = pixel_coords[in_bounds_mask]  # (M, 2)
-        final_colors = valid_colors[in_bounds_mask]  # (M, 3)
-        final_depths = depths[in_bounds_mask]  # (M,)
+        for i in range(len(x_int)):
+            x, y = x_int[i], y_int[i]
+            source_frame[0, :, y, x] = valid_colors[i]
+            source_depth[0, 0, y, x] = valid_depths[i]
+            source_mask[0, 0, y, x] = 1.0
         
-        if final_coords.shape[0] == 0:
-            return (torch.full((b, 3, h, w), -1.0, device=device, dtype=self.dtype),
-                    torch.zeros(b, 1, h, w, device=device, dtype=self.dtype))
+        # Now use the warper's forward_warp method
+        warped_frame, warped_mask, _, _ = self.forward_warp(
+            source_frame,
+            source_mask,
+            source_depth,
+            identity_transform,  # Source transformation (identity)
+            transformation_target,  # Target transformation
+            intrinsic_target,
+            None,  # Use same intrinsics
+            mask=mask,
+            twice=False
+        )
         
-        # Step 5: Native point splatting with depth-based weighting
-        # Use the same depth weighting logic as bilinear_splatting
-        sat_depths = torch.clamp(final_depths, min=0, max=1000)
-        log_depths = torch.log(1 + sat_depths)
-        depth_weights = torch.exp(log_depths / log_depths.max() * 50)
+        print(f"Final warped range: [{warped_frame.min():.3f}, {warped_frame.max():.3f}]")
+        print(f"Valid pixels: {warped_mask.sum().item()}")
         
-        # Initialize output buffers
-        rendered_frame = torch.full((h, w, 3), -1.0, device=device, dtype=self.dtype)
-        rendered_weights = torch.zeros(h, w, device=device, dtype=self.dtype)
-        
-        # Step 6: Scatter points using bilinear interpolation
-        # Get integer coordinates for bilinear interpolation
-        x_floor = torch.floor(final_coords[:, 0]).long()
-        y_floor = torch.floor(final_coords[:, 1]).long()
-        x_ceil = x_floor + 1
-        y_ceil = y_floor + 1
-        
-        # Calculate fractional parts for interpolation weights
-        x_frac = final_coords[:, 0] - x_floor.float()
-        y_frac = final_coords[:, 1] - y_floor.float()
-        
-        # Bilinear interpolation weights (same logic as prox_weight in original)
-        weight_nw = (1 - x_frac) * (1 - y_frac) / depth_weights
-        weight_ne = x_frac * (1 - y_frac) / depth_weights
-        weight_sw = (1 - x_frac) * y_frac / depth_weights
-        weight_se = x_frac * y_frac / depth_weights
-        
-        # Clamp coordinates to image bounds
-        x_floor = torch.clamp(x_floor, 0, w - 1)
-        y_floor = torch.clamp(y_floor, 0, h - 1)
-        x_ceil = torch.clamp(x_ceil, 0, w - 1)
-        y_ceil = torch.clamp(y_ceil, 0, h - 1)
-        
-        # Scatter colors to four corners (same accumulation logic as original)
-        # for i in range(final_coords.shape[0]):
-        #     color = final_colors[i]
-            
-        #     # NW corner
-        #     rendered_frame[y_floor[i], x_floor[i]] += color * weight_nw[i]
-        #     rendered_weights[y_floor[i], x_floor[i]] += weight_nw[i]
-            
-        #     # NE corner  
-        #     rendered_frame[y_floor[i], x_ceil[i]] += color * weight_ne[i]
-        #     rendered_weights[y_floor[i], x_ceil[i]] += weight_ne[i]
-            
-        #     # SW corner
-        #     rendered_frame[y_ceil[i], x_floor[i]] += color * weight_sw[i]
-        #     rendered_weights[y_ceil[i], x_floor[i]] += weight_sw[i]
-            
-        #     # SE corner
-        #     rendered_frame[y_ceil[i], x_ceil[i]] += color * weight_se[i]
-        #     rendered_weights[y_ceil[i], x_ceil[i]] += weight_se[i]
-        
-        flat_indices_nw = y_floor * w + x_floor
-        flat_indices_ne = y_floor * w + x_ceil
-        flat_indices_sw = y_ceil * w + x_floor  
-        flat_indices_se = y_ceil * w + x_ceil
-        
-        # Flatten buffers
-        flat_frame = rendered_frame.view(-1, 3)  # (H*W, 3)
-        flat_weights = rendered_weights.view(-1)  # (H*W,)
-        
-        # Scatter add all corners at once
-        flat_frame.index_add_(0, flat_indices_nw, final_colors * weight_nw.unsqueeze(-1))
-        flat_frame.index_add_(0, flat_indices_ne, final_colors * weight_ne.unsqueeze(-1))
-        flat_frame.index_add_(0, flat_indices_sw, final_colors * weight_sw.unsqueeze(-1))
-        flat_frame.index_add_(0, flat_indices_se, final_colors * weight_se.unsqueeze(-1))
-        
-        flat_weights.index_add_(0, flat_indices_nw, weight_nw)
-        flat_weights.index_add_(0, flat_indices_ne, weight_ne)
-        flat_weights.index_add_(0, flat_indices_sw, weight_sw)
-        flat_weights.index_add_(0, flat_indices_se, weight_se)
-        
-        # Reshape back
-        rendered_frame = flat_frame.view(h, w, 3)
-        rendered_weights = flat_weights.view(h, w)
-        
-        # Step 7: Normalize by weights (same as original)
-        valid_mask = rendered_weights > 0
-        normalized_frame = torch.full((h, w, 3), -1.0, device=device, dtype=self.dtype)
-        normalized_frame[valid_mask] = rendered_frame[valid_mask] / rendered_weights[valid_mask].unsqueeze(-1)
-        
-        # Clamp to valid range (same as original is_image=True logic)
-        normalized_frame = torch.clamp(normalized_frame, min=-1, max=1)
-        
-        # Convert to batch format (b, c, h, w)
-        output_frame = normalized_frame.permute(2, 0, 1).unsqueeze(0)  # (1, 3, h, w)
-        output_mask = valid_mask.unsqueeze(0).unsqueeze(0).to(self.dtype)  # (1, 1, h, w)
-        
-        # Expand to batch size if needed
-        if b > 1:
-            output_frame = output_frame.repeat(b, 1, 1, 1)
-            output_mask = output_mask.repeat(b, 1, 1, 1)
-        
-        # Apply cleaning if requested (same as original)
-        if mask:
-            output_frame, output_mask = self.clean_points(output_frame, output_mask)
-        
-        return output_frame, output_mask
-
+        return warped_frame, warped_mask
 
 
 class TrajCrafterVisualization(TrajCrafter):
