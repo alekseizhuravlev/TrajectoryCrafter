@@ -27,7 +27,10 @@ import torch.nn.functional as F
 from decord import VideoReader, cpu
 
 
-def read_video_frames(video_path, process_length, stride, max_res, dataset="open"):
+def read_video_frames(
+    video_path, process_length, stride, max_res,
+    dataset="open", width=1024, height=576
+    ):
     if dataset == "open":
         print("==> processing video: ", video_path)
         vid = VideoReader(video_path, ctx=cpu(0))
@@ -41,8 +44,6 @@ def read_video_frames(video_path, process_length, stride, max_res, dataset="open
         #     width = round(original_width * scale / 64) * 64
 
         # FIXME: hard coded
-        width = 1024
-        height = 576
 
     vid = VideoReader(video_path, ctx=cpu(0), width=width, height=height)
 
