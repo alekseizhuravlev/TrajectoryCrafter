@@ -241,6 +241,9 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
             do_binarize=True,
             do_convert_grayscale=True,
         )
+        
+        self.collected_features = {}
+        self.feature_timesteps = []
 
     def _get_t5_prompt_embeds(
         self,
@@ -1106,6 +1109,28 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
                     cross_latents=ref_input,
                 )[0]
                 noise_pred = noise_pred.float()
+                
+                
+                if hasattr(self.transformer, 'extracted_features') and self.transformer.extracted_features and i % 8 == 0 and i > 0:
+                    current_timestep = t.item()
+                    self.feature_timesteps.append(current_timestep)
+                    
+                    # Store features from this timestep
+                    timestep_key = f"timestep_{current_timestep}"
+                    self.collected_features[timestep_key] = {}
+                    
+                    for feature_name, feature_tensor in self.transformer.extracted_features.items():
+                        # Only store the conditional part if using CFG
+                        if do_classifier_free_guidance and feature_tensor.shape[0] > batch_size:
+                            feature_to_store = feature_tensor[batch_size:].detach().cpu()
+                        else:
+                            feature_to_store = feature_tensor.detach().cpu()
+                        
+                        self.collected_features[timestep_key][feature_name] = feature_to_store
+                    
+                    # Clear transformer features to prevent memory buildup
+                    self.transformer.extracted_features = {}
+                    
 
                 # perform guidance
                 if use_dynamic_cfg:

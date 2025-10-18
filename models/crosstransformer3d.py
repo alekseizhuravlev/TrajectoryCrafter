@@ -545,6 +545,10 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                 patch_size, cross_attn_in_channels, inner_dim, bias=True
             )
             self._init_cross_inputs()
+            
+        ##### Features
+        self.extracted_features = {}
+        
 
     def _init_cross_inputs(self):
         device = self.device
@@ -699,8 +703,18 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         # [2, 13, 16, 48, 84] cat [2, 13, 17, 48, 84] = [2, 13, 33, 48, 84]
         hidden_states = torch.concat([hidden_states, inpaint_latents], 2)
         hidden_states = self.patch_embed(encoder_hidden_states, hidden_states)
+
+        # Extract patch embedding features
+        # if hasattr(self, 'extracted_features'):
+        #     self.extracted_features['patch_embed'] = hidden_states[:, text_seq_length:].detach().clone()
+                        
+        
         if self.is_train_cross:
             cross_hidden_states = self.ref_patch_embed(cross_latents)
+            
+            # if hasattr(self, 'extracted_features'):
+            #     self.extracted_features['cross_patch_embed'] = cross_hidden_states.detach().clone()
+
 
         # 3. Position embedding
         text_seq_length = encoder_hidden_states.shape[1]
@@ -739,6 +753,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         # seperate
         encoder_hidden_states = hidden_states[:, :text_seq_length]
         hidden_states = hidden_states[:, text_seq_length:]
+        
+        if hasattr(self, 'extracted_features'):
+            self.extracted_features['pos_embed'] = hidden_states.detach().clone()
 
         # 4. Transformer blocks
 
@@ -772,6 +789,12 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                     temb=emb,
                     image_rotary_emb=image_rotary_emb,
                 )
+                
+            if hasattr(self, 'extracted_features') and i % (self.num_layers // 5) == 0 and i > 0: # [9, 18, 27, 36]:
+                self.extracted_features[f'transformer_block_{i}'] = hidden_states.detach().clone()
+                self.extracted_features[f'transformer_block_{i}_text'] = encoder_hidden_states.detach().clone()
+                
+                
             if self.is_train_cross:
                 if i % self.cross_attn_interval == 0:
                     hidden_states = hidden_states + self.perceiver_cross_attention[
@@ -780,6 +803,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                         cross_hidden_states, hidden_states
                     )  # torch.Size([2, 32, 2048])  torch.Size([2, 17550, 3072])
                     ca_idx += 1
+                    
+                    if hasattr(self, 'extracted_features'):
+                        self.extracted_features[f'cross_attn_{ca_idx-1}'] = hidden_states.detach().clone()
 
         # if not self.config.use_rotary_positional_embeddings:
         #     # CogVideoX-2B
@@ -789,10 +815,16 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=1)
         hidden_states = self.norm_final(hidden_states)
         hidden_states = hidden_states[:, text_seq_length:]
+        
+        if hasattr(self, 'extracted_features'):
+            self.extracted_features['final_norm'] = hidden_states.detach().clone()
 
         # 5. Final block
         hidden_states = self.norm_out(hidden_states, temb=emb)
         hidden_states = self.proj_out(hidden_states)
+        
+        # if hasattr(self, 'extracted_features'):
+        #     self.extracted_features['pre_unpatch'] = hidden_states.detach().clone()
 
         # 6. Unpatchify
         p = self.config.patch_size
