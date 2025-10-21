@@ -96,7 +96,7 @@ def get_parser():
         default=False,
         help='Enable low GPU memory mode',
     )
-    parser.add_argument('--model_name', type=str, default='checkpoints/CogVideoX-Fun-V1.1-5b-InP', help='Path to the model')
+    parser.add_argument('--model_name', type=str, default='/home/azhuravl/scratch/checkpoints/CogVideoX-Fun-V1.1-5b-InP', help='Path to the model')
     parser.add_argument(
         '--sampler_name',
         type=str,
@@ -107,7 +107,7 @@ def get_parser():
     parser.add_argument(
         '--transformer_path',
         type=str,
-        default="checkpoints/TrajectoryCrafter",
+        default="/home/azhuravl/scratch/checkpoints/TrajectoryCrafter",
         help='Path to the pretrained transformer model',
     )
     parser.add_argument(
@@ -144,19 +144,19 @@ def get_parser():
         default=". The video is of high quality, and the view is very clear. High quality, masterpiece, best quality, highres, ultra-detailed, fantastic.",
         help='Prompt for video generation',
     )
-    parser.add_argument('--blip_path', type=str, default="checkpoints/blip2-opt-2.7b")
+    parser.add_argument('--blip_path', type=str, default="/home/azhuravl/scratch/checkpoints/blip2-opt-2.7b")
 
     ## depth
     parser.add_argument(
         '--unet_path',
         type=str,
-        default="checkpoints/DepthCrafter",
+        default="/home/azhuravl/scratch/checkpoints/DepthCrafter",
         help='Path to the UNet model',
     )
     parser.add_argument(
         '--pre_train_path',
         type=str,
-        default="checkpoints/stable-video-diffusion-img2vid",
+        default="/home/azhuravl/scratch/checkpoints/stable-video-diffusion-img2vid",
         help='Path to the pre-trained model',
     )
     parser.add_argument(

@@ -279,27 +279,72 @@ class Warper:
             warped_frame2, mask2 = self.bilinear_splatting(
                 frame1, mask1, trans_depth1, flow12, None, is_image=True
             )
+            # if mask:
+            #     warped_frame2, mask2 = self.clean_points(warped_frame2, mask2)
+            # return warped_frame2, mask2, None, flow12
+        
+                    # Splat the transformed depths to get the depth map in target view
+            warped_depth2, _ = self.bilinear_splatting(
+                trans_depth1.unsqueeze(1), mask1, trans_depth1, flow12, None, is_image=False
+            )
             if mask:
                 warped_frame2, mask2 = self.clean_points(warped_frame2, mask2)
-            return warped_frame2, mask2, None, flow12
+            return warped_frame2, mask2, warped_depth2, flow12
+
 
         else:
             warped_frame2, mask2 = self.bilinear_splatting(
                 frame1, mask1, trans_depth1, flow12, None, is_image=True
             )
-            # warped_frame2, mask2 = self.clean_points(warped_frame2, mask2)
+            
+            # First depth warp: splat transformed depths to target view
+            warped_depth2, _ = self.bilinear_splatting(
+                trans_depth1.unsqueeze(1), mask1, trans_depth1, flow12, None, is_image=False
+            )
+            
+            # this was commented out
+            
+            if mask:
+                # print(warped_frame2.shape, mask2.shape, warped_depth2.shape)
+                
+                warped_frame2, mask2 = self.clean_points(warped_frame2, mask2)
+                warped_depth2, _ = self.clean_points(warped_depth2, mask2)
+                
+                # print(warped_frame2.shape, mask2.shape, warped_depth2.shape)
+            
             warped_flow, _ = self.bilinear_splatting(
                 flow12, mask1, trans_depth1, flow12, None, is_image=False
             )
-            twice_warped_frame1, _ = self.bilinear_splatting(
+            twice_warped_frame1, twice_warped_mask1 = self.bilinear_splatting(
                 warped_frame2,
                 mask2,
-                depth1.squeeze(1),
+                warped_depth2.squeeze(1),
                 -warped_flow,
                 None,
                 is_image=True,
             )
-            return twice_warped_frame1, warped_frame2, None, None
+            # return twice_warped_frame1, warped_frame2, None, None
+            
+            # Second depth warp: warp the depth back using the reverse flow
+            twice_warped_depth1, _ = self.bilinear_splatting(
+                warped_depth2,
+                mask2,
+                warped_depth2.squeeze(1),
+                -warped_flow,
+                None,
+                is_image=False,
+            )
+            
+            if mask:
+                twice_warped_frame1, twice_warped_mask1 = self.clean_points(
+                    twice_warped_frame1, twice_warped_mask1
+                )
+                twice_warped_depth1, _ = self.clean_points(
+                    twice_warped_depth1, twice_warped_mask1
+                )
+            
+            return twice_warped_frame1, twice_warped_mask1, twice_warped_depth1, None
+            
 
     def compute_transformed_points(
         self,
@@ -517,24 +562,45 @@ class Warper:
         return warped_frame2, mask2
 
     def clean_points(self, warped_frame2, mask2):
+        original_channels = warped_frame2.shape[1]
+        
         warped_frame2 = (warped_frame2 + 1.0) / 2.0
         mask = 1 - mask2
         mask[mask < 0.5] = 0
         mask[mask >= 0.5] = 1
-        mask = mask.squeeze(0).repeat(3, 1, 1).permute(1, 2, 0) * 255.0
+        
+        # Handle both single-channel and RGB
+        if original_channels == 1:
+            mask = mask.squeeze(0).permute(1, 2, 0) * 255.0  # Keep single channel
+        else:
+            mask = mask.squeeze(0).repeat(3, 1, 1).permute(1, 2, 0) * 255.0  # RGB
+        
         mask = mask.cpu().numpy()
         kernel = numpy.ones((5, 5), numpy.uint8)
+        
+        # mask_erosion = cv2.erode(numpy.array(mask), kernel, iterations=1)
+        # mask_erosion = cv2.erode(mask_erosion, kernel, iterations=1)
+        
+        # was
         mask_erosion = cv2.dilate(numpy.array(mask), kernel, iterations=1)
+        # now dilate
+        
+        
         mask_erosion = PIL.Image.fromarray(numpy.uint8(mask_erosion))
         mask_erosion_ = numpy.array(mask_erosion) / 255.0
         mask_erosion_[mask_erosion_ < 0.5] = 0
         mask_erosion_[mask_erosion_ >= 0.5] = 1
+        
+        if original_channels == 1:
+            mask_erosion_ = mask_erosion_[:, :, None]  # Add channel dim back
+        
         mask_new = (
             torch.from_numpy(mask_erosion_)
             .permute(2, 0, 1)
             .unsqueeze(0)
             .to(self.device)
         )
+        
         warped_frame2 = warped_frame2 * (1 - mask_new)
         return warped_frame2 * 2.0 - 1.0, 1 - mask_new[:, 0:1, :, :]
 
