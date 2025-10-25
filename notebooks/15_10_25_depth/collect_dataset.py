@@ -168,11 +168,12 @@ def setup_trajcrafter():
     opts_base = parser.parse_args()
 
     opts_base.exp_name = "monkaa"
-    opts_base.out_dir = '/home/azhuravl/scratch/linear_probing_fixed'
-    opts_base.save_dir = os.path.join(
-        opts_base.out_dir, 
-        opts_base.exp_name
-        )
+    # opts_base.out_dir = '/home/azhuravl/scratch/linear_probing_fixed_8'
+    
+    # opts_base.save_dir = os.path.join(
+    #     opts_base.out_dir, 
+    #     opts_base.exp_name
+    #     )
     
     opts_base.weight_dtype = torch.bfloat16
     opts_base.camera = "target"
@@ -195,12 +196,16 @@ if __name__ == '__main__':
     parser.add_argument('--process_id', type=int, required=True, help='Array job process ID')
     parser.add_argument('--n_processes', type=int, required=True, help='Total number of processes')
     parser.add_argument('--num_samples', type=int, default=10, help='Number of samples per process')
+    parser.add_argument('--output_dir', type=str)
     args = parser.parse_args()
     
     opts = setup_trajcrafter()
     opts.process_id = args.process_id
     opts.n_processes = args.n_processes
     opts.num_samples = args.num_samples
+    opts.out_dir = f'/home/azhuravl/scratch/{args.output_dir}'
+    os.makedirs(opts.out_dir)
+
 
     dataset_monkaa = video_datasets.SequenceSceneFlowDatasetCamera(
         aug_params=None,
@@ -212,7 +217,7 @@ if __name__ == '__main__':
         add_monkaa=True,
         add_driving=False,
         split="test",
-        stride = 15,
+        stride = 8,
     ) # 994 samples
     
     # Calculate start index and end index for this process

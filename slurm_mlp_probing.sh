@@ -48,7 +48,9 @@ for FEATURE in "${FEATURES[@]}"; do
     python /home/azhuravl/work/TrajectoryCrafter/notebooks/15_10_25_depth/mlp_probing.py \
         --timestep $TIMESTEP \
         --feature_name $FEATURE \
-        --num_epochs 100
+        --num_epochs 10 \
+        --exp_name mlp_probes_fixed_8_lr_10 \
+        --data_dir linear_probing_fixed_8
     
     echo "Completed $TIMESTEP with $FEATURE"
 done

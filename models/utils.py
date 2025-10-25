@@ -77,6 +77,7 @@ def save_video(data, images_path, folder=None, fps=8):
     torchvision.io.write_video(
         images_path, tensor_data, fps=fps, video_codec='h264', options={'crf': '10'}
     )
+    # torchvision.io.write_video(images_path, tensor_data, fps=fps, video_codec='libx265')  # Best choice
 
 
 def sphere2pose(c2ws_input, theta, phi, r, device, x=None, y=None):

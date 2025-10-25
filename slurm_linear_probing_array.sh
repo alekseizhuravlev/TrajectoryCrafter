@@ -16,7 +16,7 @@ cd /home/azhuravl/work/TrajectoryCrafter
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 # Dynamic calculation of samples per process
-TOTAL_SAMPLES=250
+TOTAL_SAMPLES=500
 SAMPLES_PER_PROCESS=$(( $TOTAL_SAMPLES / $SLURM_ARRAY_TASK_COUNT ))
 
 echo "Process $SLURM_ARRAY_TASK_ID: Generating $SAMPLES_PER_PROCESS samples (Total: $TOTAL_SAMPLES, Processes: $SLURM_ARRAY_TASK_COUNT)"
@@ -25,6 +25,7 @@ echo "Process $SLURM_ARRAY_TASK_ID: Generating $SAMPLES_PER_PROCESS samples (Tot
 python /home/azhuravl/work/TrajectoryCrafter/notebooks/15_10_25_depth/collect_dataset.py \
     --process_id $SLURM_ARRAY_TASK_ID \
     --n_processes $SLURM_ARRAY_TASK_COUNT \
-    --num_samples $SAMPLES_PER_PROCESS
+    --num_samples $SAMPLES_PER_PROCESS \
+    --output_dir 'linear_probing_fixed_8'
 
 echo "Array job $SLURM_ARRAY_TASK_ID of $SLURM_ARRAY_TASK_COUNT completed"

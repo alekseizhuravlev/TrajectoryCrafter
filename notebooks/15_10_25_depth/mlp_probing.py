@@ -173,6 +173,7 @@ def evaluate_probe(probe, data, data_name=""):
     losses = []
     predictions = []
     ground_truths = []
+    relative_errors = []  # Add this
     
     with torch.no_grad():
         for data_i in tqdm(data, desc=f"Evaluating {data_name}"):
@@ -182,12 +183,19 @@ def evaluate_probe(probe, data, data_name=""):
             pred = probe(feats)
             loss = criterion(pred, depth_gt)
             
+            # Calculate relative error
+            epsilon = 1e-8
+            rel_error = torch.abs((pred - depth_gt) / (depth_gt + epsilon)) * 100
+            mean_rel_error = rel_error.mean().item()
+            
             losses.append(loss.item())
+            relative_errors.append(mean_rel_error)
             predictions.append(pred.cpu())
             ground_truths.append(depth_gt.cpu())
     
     avg_loss = sum(losses) / len(losses)
-    return avg_loss, predictions, ground_truths
+    avg_rel_error = sum(relative_errors) / len(relative_errors)
+    return avg_loss, avg_rel_error, predictions, ground_truths
 
 
 
@@ -198,6 +206,10 @@ if __name__ == "__main__":
     parser.add_argument('--timestep', type=str, required=True, help='Timestep (e.g., timestep_839)')
     parser.add_argument('--feature_name', type=str, required=True, help='Feature name (e.g., transformer_block_24)')
     parser.add_argument('--num_epochs', type=int, default=10, help='Number of training epochs')
+    parser.add_argument('--exp_name', type=str, 
+                       help='Experiment name for output directory (default: mlp_probes_fixed_lr_50)')
+    parser.add_argument('--data_dir', type=str,
+                       help='Data directory name (default: linear_probing_fixed)')
     
     args = parser.parse_args()
     
@@ -205,6 +217,8 @@ if __name__ == "__main__":
     timestep = args.timestep
     feature_name = args.feature_name
     num_epochs = args.num_epochs
+    exp_name = args.exp_name
+    data_dir = args.data_dir
     
     # Setup logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s', datefmt='%H:%M:%S')
@@ -212,19 +226,20 @@ if __name__ == "__main__":
     
     
     logger.info(f"Running with timestep: {timestep}, feature: {feature_name}, epochs: {num_epochs}")
+    logger.info(f"Experiment: {exp_name}, Data dir: {data_dir}")
     
-    save_dir = f'/home/azhuravl/scratch/mlp_probes_fixed/{timestep}/{feature_name}'
+    
+    save_dir = f'/home/azhuravl/scratch/mlp_probes/{exp_name}/{timestep}/{feature_name}'
     os.makedirs(save_dir, exist_ok=True)
     
     writer = SummaryWriter(os.path.join(save_dir, 'tb_logs'))
     
-    
-    # load dataset
+    # load dataset with configurable data directory
     dataset = DepthProbingDataset(
-        '/home/azhuravl/scratch/linear_probing_fixed',
+        f'/home/azhuravl/scratch/{data_dir}',
         f'{timestep}', 
         f'{feature_name}'
-        )
+    )
     
     # Inspect a sample
     data_10 = dataset[10]
@@ -292,18 +307,20 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step()
-            
             
             losses.append(loss.item())
             
             # Log to TensorBoard
             global_step = epoch * len(train_data) + batch_idx
             writer.add_scalar('Loss/Train_Step', loss.item(), global_step)
-            current_lr = optimizer.param_groups[0]['lr']
-            writer.add_scalar('Learning_Rate', current_lr, epoch)
-    
+
             iterator.set_description(f"Epoch {epoch+1} Loss: {sum(losses[-10:]) / len(losses[-10:]):.4f}")
+            
+        scheduler.step()
+        current_lr = optimizer.param_groups[0]['lr']
+        writer.add_scalar('Learning_Rate', current_lr, epoch)
+    
+        
 
 
     # save the checkpoint
@@ -322,20 +339,27 @@ if __name__ == "__main__":
     
     # Evaluate on both train and test sets
     logger.info("Evaluating on training set...")
-    train_loss, train_preds, train_gts = evaluate_probe(probe, train_data, "Train")
+    train_loss, train_rel_error, train_preds, train_gts = evaluate_probe(probe, train_data, "Train")
 
     logger.info("Evaluating on test set...")
-    test_loss, test_preds, test_gts = evaluate_probe(probe, test_data, "Test")
+    test_loss, test_rel_error, test_preds, test_gts = evaluate_probe(probe, test_data, "Test")
 
     logger.info(f"\nTrain Loss: {train_loss:.4f}")
+    logger.info(f"Train Relative Error: {train_rel_error:.2f}%")
     logger.info(f"Test Loss: {test_loss:.4f}")
-    logger.info(f"Generalization Gap: {test_loss - train_loss:.4f}")
-    
+    logger.info(f"Test Relative Error: {test_rel_error:.2f}%")
+    logger.info(f"Generalization Gap (MSE): {test_loss - train_loss:.4f}")
+    logger.info(f"Generalization Gap (Rel Error): {test_rel_error - train_rel_error:.2f}%")
     
     # Log final metrics to TensorBoard
     writer.add_scalar('Loss/Final_Train', train_loss, 0)
     writer.add_scalar('Loss/Final_Test', test_loss, 0)
     writer.add_scalar('Loss/Generalization_Gap', test_loss - train_loss, 0)
+    
+    # Add relative error metrics
+    writer.add_scalar('Relative_Error/Final_Train', train_rel_error, 0)
+    writer.add_scalar('Relative_Error/Final_Test', test_rel_error, 0)
+    writer.add_scalar('Relative_Error/Generalization_Gap', test_rel_error - train_rel_error, 0)
     
     # Log hyperparameters and final metrics
     writer.add_hparams(
@@ -350,16 +374,20 @@ if __name__ == "__main__":
         {
             'final_train_loss': train_loss,
             'final_test_loss': test_loss,
-            'generalization_gap': test_loss - train_loss
+            'generalization_gap_mse': test_loss - train_loss,
+            'final_train_rel_error': train_rel_error,
+            'final_test_rel_error': test_rel_error,
+            'generalization_gap_rel_error': test_rel_error - train_rel_error
         }
     )
+    
     
     # Close the writer
     writer.close()
     
     
     # Visualize some predictions
-    ids_vis = [0, 15, 30, 45]
+    ids_vis = range(0, len(test_data), 5)
 
     for idx in ids_vis:
         # plot gt, pred, difference for frame 6 only. use same color scale
