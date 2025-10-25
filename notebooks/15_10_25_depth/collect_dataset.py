@@ -25,7 +25,7 @@ import numpy as np
 import argparse
 
 
-def extract_video_data(data, baseline=1):
+def extract_video_data(data, baseline=1, image_size=(540, 960)):
     """
     Extract frames, depths, poses, and camera intrinsics from data object.
     
@@ -43,14 +43,14 @@ def extract_video_data(data, baseline=1):
     frames_tensor = data['img'][:,0] / 127.5 - 1.0  # [T, 3, H, W]
     disparity_tensor = data['disp'][:,0]  # [T, 1, H, W]
     
-    image_size = torch.tensor([540, 960])
+    image_size = torch.tensor(image_size)
     
     viewpoints_left = [data["viewpoint"][i][0] for i in range(frames_tensor.shape[0])]
     viewpoints_batch = join_cameras_as_batch(viewpoints_left)
     
     R, t, K = opencv_from_cameras_projection(
         viewpoints_batch,
-        image_size=torch.tensor([[540, 960]]).repeat(frames_tensor.shape[0], 1)
+        image_size=image_size.repeat(frames_tensor.shape[0], 1)
     )
     poses_tensor = torch.eye(4).unsqueeze(0).repeat(frames_tensor.shape[0], 1, 1)  # [T, 4, 4]
     poses_tensor[:, :3, :3] = R
