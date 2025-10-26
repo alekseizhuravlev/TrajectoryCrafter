@@ -641,3 +641,122 @@ class GlobalPointCloudWarper:
         
         return final_frame, final_mask
 
+
+
+    def render_pointcloud_zbuffer_vectorized_fixed(
+        self,
+        points_3d: torch.Tensor,
+        colors_3d: torch.Tensor,
+        transformation_target: torch.Tensor,
+        intrinsic_target: torch.Tensor,
+        image_size: tuple = (576, 1024),
+        point_size: int = 1
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Fixed vectorized Z-buffer rendering that works for all point sizes
+        """
+        
+        h, w = image_size
+        device = self.device
+        
+        # Transform and project
+        ones = torch.ones(points_3d.shape[0], 1, device=device, dtype=self.dtype)
+        world_points_homo = torch.cat([points_3d, ones], dim=1)
+        camera_points_homo = torch.matmul(transformation_target[0], world_points_homo.T).T
+        camera_points = camera_points_homo[:, :3]
+        
+        projected_homo = torch.matmul(intrinsic_target[0], camera_points.T).T
+        pixel_coords = projected_homo[:, :2] / projected_homo[:, 2:3]
+        depths_vals = camera_points[:, 2]
+        
+        # Filter valid points - ONLY filter points behind camera and in bounds
+        valid_mask = (depths_vals > 0.01) & \
+                    (pixel_coords[:, 0] >= 0) & (pixel_coords[:, 0] < w) & \
+                    (pixel_coords[:, 1] >= 0) & (pixel_coords[:, 1] < h)
+        
+        if valid_mask.sum() == 0:
+            return (torch.full((1, 3, h, w), -1.0, device=device),
+                    torch.zeros(1, 1, h, w, device=device))
+        
+        valid_coords = pixel_coords[valid_mask]
+        valid_colors = colors_3d[valid_mask]
+        valid_depths = depths_vals[valid_mask]
+        
+        # Handle point splatting
+        if point_size <= 1:
+            # Simple case - no splatting needed
+            x_int = torch.clamp(torch.round(valid_coords[:, 0]).long(), 0, w-1)
+            y_int = torch.clamp(torch.round(valid_coords[:, 1]).long(), 0, h-1)
+            linear_indices = y_int * w + x_int
+            
+            final_indices = linear_indices
+            final_colors = valid_colors
+            final_depths = valid_depths
+            
+        else:
+            # Generate splat pattern
+            radius = point_size // 2
+            offsets = []
+            
+            for dy in range(-radius, radius + 1):
+                for dx in range(-radius, radius + 1):
+                    if abs(dx) <= radius and abs(dy) <= radius:
+                        offsets.append([dx, dy])
+            
+            splat_offsets = torch.tensor(offsets, device=device)
+            n_points = len(valid_coords)
+            n_splats = len(splat_offsets)
+            
+            # Expand points for each splat offset
+            expanded_coords = valid_coords[:, None, :] + splat_offsets[None, :, :]
+            expanded_coords = expanded_coords.reshape(-1, 2)
+            
+            # Repeat colors and depths (keep original colors - no graying)
+            expanded_colors = valid_colors[:, None, :].repeat(1, n_splats, 1).reshape(-1, 3)
+            expanded_depths = valid_depths[:, None].repeat(1, n_splats).reshape(-1)
+            
+            # Convert to integer coordinates and filter bounds
+            x_int = torch.round(expanded_coords[:, 0]).long()
+            y_int = torch.round(expanded_coords[:, 1]).long()
+            
+            bounds_mask = (x_int >= 0) & (x_int < w) & (y_int >= 0) & (y_int < h)
+            
+            if bounds_mask.sum() == 0:
+                return (torch.full((1, 3, h, w), -1.0, device=device),
+                        torch.zeros(1, 1, h, w, device=device))
+            
+            x_int = x_int[bounds_mask]
+            y_int = y_int[bounds_mask]
+            final_colors = expanded_colors[bounds_mask]
+            final_depths = expanded_depths[bounds_mask]
+            linear_indices = y_int * w + x_int
+            
+            final_indices = linear_indices
+        
+        # FIXED Z-buffer logic: proper depth testing without losing points
+        # Initialize buffers with far depth values
+        color_buffer = torch.full((3, h * w), -1.0, device=device)
+        depth_buffer = torch.full((h * w,), float('inf'), device=device)
+        
+        # Process all points and keep only the closest at each pixel
+        for i in range(len(final_indices)):
+            pixel_idx = final_indices[i]
+            point_depth = final_depths[i]
+            point_color = final_colors[i]
+            
+            # Only update if this point is closer
+            if point_depth < depth_buffer[pixel_idx]:
+                depth_buffer[pixel_idx] = point_depth
+                color_buffer[:, pixel_idx] = point_color
+        
+        # Create mask for pixels that were rendered (finite depth)
+        rendered_mask = (depth_buffer < float('inf'))
+        
+        # Set unrendered pixels to have 0 depth in final output
+        depth_buffer[~rendered_mask] = 0.0
+        
+        # Reshape to final format
+        final_frame = color_buffer.view(3, h, w).unsqueeze(0)
+        final_mask = rendered_mask.float().view(1, 1, h, w)
+        
+        return final_frame, final_mask

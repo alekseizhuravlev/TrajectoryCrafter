@@ -286,6 +286,15 @@ def sample_diffusion(
     frames_ref_interp = F.interpolate(
         frames_ref, size=opts.sample_size, mode='bilinear', align_corners=False
     )
+    
+    # save frames_ref
+    save_video(
+        (frames_ref_interp.permute(0, 2, 3, 1) + 1.0) / 2.0,
+        os.path.join(segment_dir, 'reference.mp4'),
+        fps=opts.fps,
+    )
+    
+    
     frames_ref = (frames_ref_interp.permute(1, 0, 2, 3).unsqueeze(0) + 1.0) / 2.0
     
     
