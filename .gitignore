@@ -5,3 +5,6 @@ experiments/
 checkpoints/
 *.mp4
 *.png
+*.json
+*.pt
+*.txt

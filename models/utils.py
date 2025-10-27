@@ -397,6 +397,26 @@ class Warper:
         trans_world_homo = torch.matmul(trans_4d, world_points_homo)  # (b, h, w, 4, 1)
         trans_world = trans_world_homo[:, :, :, :3]  # (b, h, w, 3, 1)
         trans_norm_points = torch.matmul(intrinsic2_4d, trans_world)  # (b, h, w, 3, 1)
+
+
+        ### NEW:
+        # Add validation: filter out points behind the camera
+        behind_camera = trans_world[:, :, :, 2:3] <= 0.01  # Z coordinate should be positive
+
+        # print how many points were behind camera out of total
+        
+        # num_behind_camera = behind_camera.sum()
+        # total_points = behind_camera.numel()
+        # print(f"Points behind camera: {num_behind_camera.item()} out of {total_points}")
+
+        # Set points behind camera to invalid depth
+        trans_norm_points = torch.where(
+            behind_camera.expand_as(trans_norm_points),
+            torch.full_like(trans_norm_points, 1000.0),  # Large depth value
+            trans_norm_points
+        )
+
+
         return trans_norm_points
 
     def bilinear_splatting(
