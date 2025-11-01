@@ -857,6 +857,7 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
         # create a boolean to check if the strength is set to 1. if so then initialise the latents with pure noise
         is_strength_max = strength == 1.0
 
+        # video = warped video
         # 5. Prepare latents.
         if video is not None:
             video_length = video.shape[2]
@@ -870,6 +871,7 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
         else:
             init_video = None
 
+        # 10 reference frames
         ref_length = reference.shape[2]
         ref_video = self.image_processor.preprocess(
             rearrange(reference, "b c f h w -> (b f) c h w"), height=height, width=width
@@ -898,6 +900,7 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
         num_channels_transformer = self.transformer.config.in_channels
         return_image_latents = num_channels_transformer == num_channels_latents
 
+        # latents of warped video
         latents_outputs = self.prepare_latents(
             batch_size * num_videos_per_prompt,
             num_channels_latents,
@@ -1098,7 +1101,7 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
                 timestep = t.expand(latent_model_input.shape[0])
 
                 # predict noise model_output
-                # 输入普通latents(input image repeat成视频和带mask的latents)
+                # Input regular latents (input image repeat to video and latents with masks)
                 noise_pred = self.transformer(
                     hidden_states=latent_model_input,
                     encoder_hidden_states=prompt_embeds,

@@ -7,7 +7,7 @@
 
 # Activate conda environment
 source ~/.bashrc
-conda activate trajcrafter
+conda activate trajcrafter_ssd
 
 # Navigate to working directory
 cd /home/azhuravl/work/TrajectoryCrafter

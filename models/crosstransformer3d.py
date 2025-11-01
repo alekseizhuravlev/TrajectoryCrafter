@@ -790,7 +790,8 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                     image_rotary_emb=image_rotary_emb,
                 )
                 
-            if hasattr(self, 'extracted_features') and i % (self.num_layers // 5) == 0 and i > 0: # [9, 18, 27, 36]:
+            actual_num_layers = len(self.transformer_blocks)
+            if hasattr(self, 'extracted_features') and i % (actual_num_layers // 5) == 0 and i > 0: # [9, 18, 27, 36]:
                 self.extracted_features[f'transformer_block_{i}'] = hidden_states.detach().clone()
                 self.extracted_features[f'transformer_block_{i}_text'] = encoder_hidden_states.detach().clone()
                 
