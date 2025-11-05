@@ -78,16 +78,21 @@ def extract_video_data(data, baseline=1, image_size=(540, 960)):
 
 
 class CameraMotionFilter:
-    def __init__(self, device='cuda'):
+    def __init__(self, device='cuda', min_total_translation=10, max_total_translation=100, 
+                 min_total_rotation=0.1, max_total_rotation=0.55):
         """
         Args:
             device: torch device to run computations on
+            min_total_translation: minimum total translation threshold
+            max_total_translation: maximum total translation threshold  
+            min_total_rotation: minimum total rotation threshold (radians)
+            max_total_rotation: maximum total rotation threshold (radians, ~30 degrees)
         """
-        self.min_total_translation = 10
-        self.max_total_translation = 100
+        self.min_total_translation = min_total_translation
+        self.max_total_translation = max_total_translation
         
-        self.min_total_rotation = 0.1
-        self.max_total_rotation = 0.55  # ~30 degrees
+        self.min_total_rotation = min_total_rotation
+        self.max_total_rotation = max_total_rotation
         
         self.device = device
     

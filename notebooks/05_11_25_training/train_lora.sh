@@ -1,14 +1,29 @@
 export MODEL_NAME="/home/azhuravl/scratch/checkpoints/CogVideoX-Fun-V1.1-5b-InP"
-export DATASET_NAME=""
 export DATASET_META_NAME="datasets/Minimalism/metadata_add_width_height.json"
 # NCCL_IB_DISABLE=1 and NCCL_P2P_DISABLE=1 are used in multi nodes without RDMA. 
 # export NCCL_IB_DISABLE=1
 # export NCCL_P2P_DISABLE=1
 NCCL_DEBUG=INFO
 
-accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_utils/main.py \
+# Create output directory with date and time
+BASE_OUTPUT_DIR="/home/azhuravl/work/TrajectoryCrafter/experiments"
+DATE_DIR=$(date +"%d-%m-%Y")
+TIME_DIR=$(date +"%H-%M-%S")
+OUTPUT_DIR="$BASE_OUTPUT_DIR/$DATE_DIR/$TIME_DIR"
+
+echo "Output directory: $OUTPUT_DIR"
+# Create the directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+
+export TRAIN_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/sceneflow"
+export VAL_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/sceneflow_val"
+
+
+accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_utils_ours/main.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
-  --train_data_dir=$DATASET_NAME \
+  --train_data_dir=$TRAIN_DATASET_NAME \
+  --val_data_dir=$VAL_DATASET_NAME \
   --train_data_meta=$DATASET_META_NAME \
   --image_sample_size=1024 \
   --video_sample_size=256 \
@@ -19,11 +34,13 @@ accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_util
   --video_repeat=1 \
   --gradient_accumulation_steps=1 \
   --dataloader_num_workers=8 \
-  --num_train_epochs=100 \
-  --checkpointing_steps=50 \
+  --num_train_epochs=50 \
+  --checkpointing_steps=10000 \
+  --validation_steps=10000 \
+  --validation_epochs=5 \
   --learning_rate=1e-04 \
   --seed=42 \
-  --output_dir="/home/azhuravl/work/TrajectoryCrafter/experiments/01-11-2025/train_lora_ours" \
+  --output_dir="$OUTPUT_DIR" \
   --gradient_checkpointing \
   --mixed_precision="bf16" \
   --adam_weight_decay=3e-2 \
@@ -35,6 +52,7 @@ accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_util
   --enable_bucket \
   --train_mode="inpaint" 
   # --low_vram \
+
   
 
 # Training command for CogVideoX-Fun-V1.5

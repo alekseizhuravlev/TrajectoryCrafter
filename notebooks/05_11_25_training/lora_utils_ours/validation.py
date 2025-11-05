@@ -1,124 +1,170 @@
+# validation.py (updated)
 import gc
 import os
 import torch
+from torch.utils.data import DataLoader
 from accelerate.logging import get_logger
 from diffusers import DDIMScheduler
-from videox_fun.models import CogVideoXTransformer3DModel
-from videox_fun.pipeline import CogVideoXFunPipeline, CogVideoXFunInpaintPipeline
+from models.crosstransformer3d import CrossTransformer3DModel
+from models.pipeline_trajectorycrafter import TrajCrafter_Pipeline
 from videox_fun.utils.lora_utils import merge_lora
-from videox_fun.utils.utils import get_image_to_video_latent, save_videos_grid
+from videox_fun.utils.utils import save_videos_grid
+from transformers import T5EncoderModel, T5Tokenizer
+from dataset_videos import SimpleValidationDataset
 
 logger = get_logger(__name__, log_level="INFO")
 
-def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, accelerator, weight_dtype, global_step):
+def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, accelerator, weight_dtype, global_step, val_dataloader=None):
     try:
         logger.info("Running validation... ")
 
-        transformer3d_val = CogVideoXTransformer3DModel.from_pretrained(
-            args.pretrained_model_name_or_path, subfolder="transformer",
-        ).to(weight_dtype)
-        transformer3d_val.load_state_dict(accelerator.unwrap_model(transformer3d).state_dict())
+        # Use the passed validation dataloader or skip validation
+        if val_dataloader is None:
+            logger.warning("No validation dataloader provided, skipping validation")
+            return
+
+        logger.info(f"Using validation dataset with {len(val_dataloader.dataset)} samples")
+
+
+        # Load the pruned CrossTransformer3DModel
+        # transformer3d_val = CrossTransformer3DModel.from_pretrained(
+        #     '/home/azhuravl/scratch/checkpoints/TrajectoryCrafter'
+        # ).to(weight_dtype)
+        
+        # Apply the same pruning as in training
+        # num_layers_to_keep = 16
+        # num_cross_layers_to_keep = 2
+        # transformer3d_val.transformer_blocks = transformer3d_val.transformer_blocks[:num_layers_to_keep]
+        # transformer3d_val.perceiver_cross_attention = transformer3d_val.perceiver_cross_attention[:num_cross_layers_to_keep]
+        
+        # Load the trained state
+        # transformer3d_val.load_state_dict(accelerator.unwrap_model(transformer3d).state_dict())
+        
+        transformer3d_val = accelerator.unwrap_model(transformer3d)
+        
+        # Use DDIMScheduler
         scheduler = DDIMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
         
-        if args.train_mode != "normal":
-            pipeline = CogVideoXFunInpaintPipeline.from_pretrained(
-                args.pretrained_model_name_or_path, 
-                vae=accelerator.unwrap_model(vae).to(weight_dtype), 
-                text_encoder=accelerator.unwrap_model(text_encoder),
-                tokenizer=tokenizer,
-                transformer=transformer3d_val,
-                scheduler=scheduler,
-                torch_dtype=weight_dtype,
-            )
-        else:
-            pipeline = CogVideoXFunPipeline.from_pretrained(
-                args.pretrained_model_name_or_path, 
-                vae=accelerator.unwrap_model(vae).to(weight_dtype), 
-                text_encoder=accelerator.unwrap_model(text_encoder),
-                tokenizer=tokenizer,
-                transformer=transformer3d_val,
-                scheduler=scheduler,
-                torch_dtype=weight_dtype
-            )
+        # Create TrajCrafter_Pipeline
+        pipeline = TrajCrafter_Pipeline.from_pretrained(
+            args.pretrained_model_name_or_path,
+            vae=accelerator.unwrap_model(vae).to(weight_dtype),
+            text_encoder=accelerator.unwrap_model(text_encoder),
+            tokenizer=tokenizer,
+            transformer=transformer3d_val,
+            scheduler=scheduler,
+            torch_dtype=weight_dtype,
+        )
 
         pipeline = pipeline.to(accelerator.device)
-        pipeline = merge_lora(
-            pipeline, None, 1, accelerator.device, state_dict=accelerator.unwrap_model(network).state_dict(), transformer_only=True
-        )
+        
+        # Merge LoRA weights
+        # pipeline = merge_lora(
+        #     pipeline, None, 1, accelerator.device, 
+        #     state_dict=accelerator.unwrap_model(network).state_dict(), 
+        #     transformer_only=True,
+        #     sub_transformer_name="transformer"
+        # )
 
         if args.seed is None:
             generator = None
         else:
             generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
 
-        for i in range(len(args.validation_prompts)):
+        # Run validation with real data
+        validation_output_dir = os.path.join(args.output_dir, "validation_results")
+        os.makedirs(validation_output_dir, exist_ok=True)
+        
+        for i, batch in enumerate(val_dataloader):
+            sample_name = batch['sample_name'][0]
+            logger.info(f"Processing validation sample {i+1}/{len(val_dataloader)}: {sample_name}")
+            
             with torch.no_grad():
-                if args.train_mode != "normal":
-                    with torch.autocast("cuda", dtype=weight_dtype):
-                        video_length = int((args.video_sample_n_frames - 1) // vae.config.temporal_compression_ratio * vae.config.temporal_compression_ratio) + 1 if args.video_sample_n_frames != 1 else 1
-                        input_video, input_video_mask, _ = get_image_to_video_latent(None, None, video_length=video_length, sample_size=[args.video_sample_size, args.video_sample_size])
-                        sample = pipeline(
-                            args.validation_prompts[i],
-                            num_frames = video_length,
-                            negative_prompt = "bad detailed",
-                            height      = args.video_sample_size,
-                            width       = args.video_sample_size,
-                            guidance_scale = 7,
-                            generator   = generator,
+                with torch.autocast("cuda", dtype=weight_dtype):
+                    caption = batch['caption'][0]  # Get string from batch
 
-                            video        = input_video,
-                            mask_video   = input_video_mask,
-                        ).videos
-                        os.makedirs(os.path.join(args.output_dir, "sample"), exist_ok=True)
-                        save_videos_grid(sample, os.path.join(args.output_dir, f"sample/sample-{global_step}-{i}.gif"))
+                    # Move data to device
+                    ref_video = batch['ref_video'].to(accelerator.device)
+                    warped_video = batch['warped_video'].to(accelerator.device) 
+                    masks = batch['masks'].to(accelerator.device)
+                    input_video = batch['input_video'].to(accelerator.device)
+                    
+                    # Get video dimensions
+                    num_frames = warped_video.shape[2]
+                    height, width = warped_video.shape[-2:]
+                    
+                    logger.info(f"  Caption: {caption}")
+                    logger.info(f"  Video shape: {num_frames} frames, {height}x{width}")
+                    
+                    # Generate sample
+                    sample = pipeline(
+                        prompt=caption,
+                        num_frames=num_frames,
+                        negative_prompt="The video is not of a high quality, it has a low resolution. Watermark present in each frame. The background is solid. Strange body and strange trajectory. Distortion.",
+                        height=height,
+                        width=width,
+                        guidance_scale=6.0,
+                        generator=generator,
+                        num_inference_steps=50,
+                        # Real TrajectoryCrafter inputs from dataset
+                        video=warped_video,
+                        mask_video=masks,
+                        reference=ref_video,
+                    ).videos
+                    
+                    # Move tensors to CPU before saving
+                    sample_cpu = sample.cpu()
+                    input_video_cpu = input_video.cpu()
+                    warped_video_cpu = warped_video.cpu()
+                    masks_cpu = masks.cpu()
+                    
+                    # Save generated video as MP4
+                    output_filename = f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_gen.mp4"
+                    save_videos_grid(
+                        sample_cpu, 
+                        os.path.join(validation_output_dir, output_filename)
+                    )
+                    
+                    # Save input video for comparison as MP4
+                    input_filename = f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_input.mp4"
+                    save_videos_grid(
+                        input_video_cpu, 
+                        os.path.join(validation_output_dir, input_filename)
+                    )
+                    
+                    # Save warped conditioning video as MP4
+                    warped_filename = f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_warped.mp4"
+                    save_videos_grid(
+                        warped_video_cpu, 
+                        os.path.join(validation_output_dir, warped_filename)
+                    )
+                    
+                    # Save masks as MP4
+                    mask_filename = f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_masks.mp4"
+                    # Convert masks to 3-channel for visualization
+                    masks_vis = masks_cpu.repeat(1, 3, 1, 1, 1) / 255.0
+                    save_videos_grid(
+                        masks_vis, 
+                        os.path.join(validation_output_dir, mask_filename)
+                    )
+                    
+                    logger.info(f"  Saved validation outputs for {sample_name}")
 
-                        video_length = 1
-                        input_video, input_video_mask, _ = get_image_to_video_latent(None, None, video_length=video_length, sample_size=[args.video_sample_size, args.video_sample_size])
-                        sample = pipeline(
-                            args.validation_prompts[i],
-                            num_frames = video_length,
-                            negative_prompt = "bad detailed",
-                            height      = args.video_sample_size,
-                            width       = args.video_sample_size,
-                            generator   = generator,
+        logger.info(f"Validation complete! Results saved to {validation_output_dir}/")
 
-                            video        = input_video,
-                            mask_video   = input_video_mask,
-                        ).videos
-                        os.makedirs(os.path.join(args.output_dir, "sample"), exist_ok=True)
-                        save_videos_grid(sample, os.path.join(args.output_dir, f"sample/sample-{global_step}-image-{i}.gif"))
-                else:
-                    with torch.autocast("cuda", dtype=weight_dtype):
-                        sample = pipeline(
-                            args.validation_prompts[i], 
-                            num_frames = args.video_sample_n_frames,
-                            negative_prompt = "bad detailed",
-                            height      = args.video_sample_size,
-                            width       = args.video_sample_size,
-                            generator   = generator
-                        ).videos
-                        os.makedirs(os.path.join(args.output_dir, "sample"), exist_ok=True)
-                        save_videos_grid(sample, os.path.join(args.output_dir, f"sample/sample-{global_step}-{i}.gif"))
-
-                        sample = pipeline(
-                            args.validation_prompts[i], 
-                            num_frames = 1,
-                            negative_prompt = "bad detailed",
-                            height      = args.video_sample_size,
-                            width       = args.video_sample_size,
-                            generator   = generator
-                        ).videos
-                        os.makedirs(os.path.join(args.output_dir, "sample"), exist_ok=True)
-                        save_videos_grid(sample, os.path.join(args.output_dir, f"sample/sample-{global_step}-image-{i}.gif"))
-
+        # Clean up
         del pipeline
         del transformer3d_val
         gc.collect()
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+        
     except Exception as e:
         gc.collect()
-        torch.cuda.empty_cache()
+        torch.cuda.empty_cache() 
         torch.cuda.ipc_collect()
-        print(f"Eval error with info {e}")
+        logger.error(f"Validation error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
         return None

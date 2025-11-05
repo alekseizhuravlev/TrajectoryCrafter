@@ -3,8 +3,20 @@
 # dataset for latents
 # make cropped checkpoints for crosstransformer
 # load these checkpoints, add lora to last 8 layers only
+# check which latents should be used for input
+# validation loop
+# checkpointing
 
-# TODO: check which latents should be used for input
+
+# TODO
+# less hyperparams
+# increase dataset size
+# test with RGB first
+# then put depth
+
+# TODO
+# + validation is working
+# + is training loop working?
 
 import os
 import gc
@@ -25,11 +37,12 @@ from training_utils import (
 from checkpoint_utils import handle_checkpointing
 
 
-def run_trajectorycrafter_training_loop(
+def run_training_loop(
     args, accelerator, train_dataloader, network, optimizer, lr_scheduler,
-    transformer3d, noise_scheduler,
-    weight_dtype, global_step, first_epoch, batch_sampler, 
-    save_model_fn, log_validation_fn, rng, torch_rng, index_rng
+    vae, text_encoder, tokenizer, transformer3d, noise_scheduler,
+    weight_dtype, global_step, first_epoch, batch_sampler,
+    save_model, log_validation, rng, torch_rng, index_rng,
+    val_dataloader=None  # Add this parameter
 ):
     """Main training loop for TrajectoryCrafter with pre-encoded latents and CFG support"""
     
@@ -52,12 +65,22 @@ def run_trajectorycrafter_training_loop(
     # Main training loop
     for epoch in range(first_epoch, args.num_train_epochs):
         train_loss = 0.0
-        batch_sampler.sampler.generator = torch.Generator().manual_seed(args.seed + epoch)
+        
+        # batch_sampler.sampler.generator = torch.Generator().manual_seed(args.seed + epoch)
+        # Only set generator if batch_sampler exists
+        if batch_sampler is not None:
+            batch_sampler.sampler.generator = torch.Generator().manual_seed(args.seed + epoch)
+        
         
         for step, batch in enumerate(train_dataloader):
             # Data batch sanity check
             if epoch == first_epoch and step == 0:
                 _perform_sanity_check_trajectorycrafter_latents(args, batch, global_step)
+                if accelerator.is_main_process:
+                    log_validation(
+                        vae, text_encoder, tokenizer, transformer3d, network, args, 
+                        accelerator, weight_dtype, global_step, val_dataloader=val_dataloader
+                    )
 
             with accelerator.accumulate(transformer3d):
                 # Get all pre-encoded latents from dataset
@@ -165,16 +188,16 @@ def run_trajectorycrafter_training_loop(
                     loss = loss * (1 - motion_sub_loss_ratio) + sub_loss * motion_sub_loss_ratio
 
                 # Debug prints for first few steps
-                if step < 3:
-                    print(f"DEBUG Step {step}:")
-                    print(f"  Target latents: {target_latents.shape}, mean: {target_latents.mean():.6f}")
-                    print(f"  Reference latents: {reference_latents.shape}, mean: {reference_latents.mean():.6f}")
-                    if inpaint_latents is not None:
-                        print(f"  Inpaint latents: {inpaint_latents.shape}, mean: {inpaint_latents.mean():.6f}")
-                    print(f"  Text embeddings: {text_embeddings.shape}, mean: {text_embeddings.mean():.6f}")
-                    print(f"  Noise pred: mean={noise_pred.mean():.6f}, std={noise_pred.std():.6f}")
-                    print(f"  Target: mean={target.mean():.6f}, std={target.std():.6f}")
-                    print(f"  Loss: {loss.item():.6f}")
+                # if step < 1:
+                #     print(f"DEBUG Step {step}:")
+                #     print(f"  Target latents: {target_latents.shape}, mean: {target_latents.mean():.6f}")
+                #     print(f"  Reference latents: {reference_latents.shape}, mean: {reference_latents.mean():.6f}")
+                #     if inpaint_latents is not None:
+                #         print(f"  Inpaint latents: {inpaint_latents.shape}, mean: {inpaint_latents.mean():.6f}")
+                #     print(f"  Text embeddings: {text_embeddings.shape}, mean: {text_embeddings.mean():.6f}")
+                #     print(f"  Noise pred: mean={noise_pred.mean():.6f}, std={noise_pred.std():.6f}")
+                #     print(f"  Target: mean={target.mean():.6f}, std={target.std():.6f}")
+                #     print(f"  Loss: {loss.item():.6f}")
 
                 # Gather losses and backpropagate
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
@@ -199,9 +222,10 @@ def run_trajectorycrafter_training_loop(
                     handle_checkpointing(args, accelerator, global_step, save_model_fn, network)
 
                 if accelerator.is_main_process:
-                    if args.validation_prompts is not None and global_step % args.validation_steps == 0:
-                        log_validation_fn(
-                            transformer3d, network, args, accelerator, weight_dtype, global_step
+                    if hasattr(args, 'validation_steps') and global_step % args.validation_steps == 0:
+                        log_validation(
+                            vae, text_encoder, tokenizer, transformer3d, network, args, 
+                            accelerator, weight_dtype, global_step, val_dataloader=val_dataloader
                         )
 
             logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
@@ -212,9 +236,10 @@ def run_trajectorycrafter_training_loop(
 
         # Validation at epoch end
         if accelerator.is_main_process:
-            if args.validation_prompts is not None and epoch % args.validation_epochs == 0:
-                log_validation_fn(
-                    transformer3d, network, args, accelerator, weight_dtype, global_step
+            if hasattr(args, 'validation_epochs') and (epoch % args.validation_epochs == 0 or (epoch == args.num_train_epochs - 1)):
+                log_validation(
+                    vae, text_encoder, tokenizer, transformer3d, network, args, 
+                    accelerator, weight_dtype, global_step, val_dataloader=val_dataloader
                 )
 
     return global_step

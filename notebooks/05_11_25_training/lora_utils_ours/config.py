@@ -59,6 +59,17 @@ def parse_args():
         help=("A set of prompts evaluated every `--validation_epochs` and logged to `--report_to`."),
     )
     parser.add_argument(
+        "--val_data_dir",
+        type=str,
+        default=None,
+        help=("Validation data directory."),
+    )
+    parser.add_argument(
+        '--use_depth',
+        action="store_true",
+        help="Whether to use depth information."
+    )
+    parser.add_argument(
         "--output_dir",
         type=str,
         default="sd-model-finetuned",

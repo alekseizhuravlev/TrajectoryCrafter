@@ -44,48 +44,86 @@ def resize_mask(mask, latent, process_first_frame_only=True):
         )
     return resized_mask
 
+
+
 def prepare_rotary_positional_embeddings(height, width, num_frames, device, vae, transformer3d, accelerator):
-    """Prepare rotary positional embeddings"""
+    """Prepare rotary positional embeddings - TrajectoryCrafter style"""
     unwrap_model = accelerator.unwrap_model
     
     vae_scale_factor_spatial = (
         2 ** (len(vae.config.block_out_channels) - 1) if vae is not None else 8
     )
 
+    # Use only patch_size (not patch_size_t) like TrajectoryCrafter
     p = unwrap_model(transformer3d).config.patch_size
-    p_t = unwrap_model(transformer3d).config.patch_size_t
 
     grid_height = height // (vae_scale_factor_spatial * p)
     grid_width = width // (vae_scale_factor_spatial * p)
-    base_size_height = unwrap_model(transformer3d).config.sample_height // p
-    base_size_width = unwrap_model(transformer3d).config.sample_width // p
+    
+    # Use fixed base sizes like TrajectoryCrafter pipeline
+    base_size_width = 720 // (vae_scale_factor_spatial * p)
+    base_size_height = 480 // (vae_scale_factor_spatial * p)
 
-    if p_t is None:
-        # CogVideoX 1.0
-        grid_crops_coords = get_resize_crop_region_for_grid(
-            (grid_height, grid_width), base_size_width, base_size_height
-        )
-        freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
-            embed_dim=unwrap_model(transformer3d).config.attention_head_dim,
-            crops_coords=grid_crops_coords,
-            grid_size=(grid_height, grid_width),
-            temporal_size=num_frames,
-            use_real=True,
-        )
-    else:
-        # CogVideoX 1.5
-        base_num_frames = (num_frames + p_t - 1) // p_t
-        freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
-            embed_dim=unwrap_model(transformer3d).config.attention_head_dim,
-            crops_coords=None,
-            grid_size=(grid_height, grid_width),
-            temporal_size=base_num_frames,
-            grid_type="slice",
-            max_size=(base_size_height, base_size_width),
-        )
+    # Always use the CogVideoX 1.0 style (like TrajectoryCrafter)
+    grid_crops_coords = get_resize_crop_region_for_grid(
+        (grid_height, grid_width), base_size_width, base_size_height
+    )
+    freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
+        embed_dim=unwrap_model(transformer3d).config.attention_head_dim,
+        crops_coords=grid_crops_coords,
+        grid_size=(grid_height, grid_width),
+        temporal_size=num_frames,
+        use_real=True,
+    )
+    
     freqs_cos = freqs_cos.to(device=device)
     freqs_sin = freqs_sin.to(device=device)
     return freqs_cos, freqs_sin
+
+
+# def prepare_rotary_positional_embeddings(height, width, num_frames, device, vae, transformer3d, accelerator):
+#     """Prepare rotary positional embeddings"""
+#     unwrap_model = accelerator.unwrap_model
+    
+#     vae_scale_factor_spatial = (
+#         2 ** (len(vae.config.block_out_channels) - 1) if vae is not None else 8
+#     )
+
+#     p = unwrap_model(transformer3d).config.patch_size
+#     p_t = unwrap_model(transformer3d).config.patch_size_t
+
+#     grid_height = height // (vae_scale_factor_spatial * p)
+#     grid_width = width // (vae_scale_factor_spatial * p)
+#     base_size_height = unwrap_model(transformer3d).config.sample_height // p
+#     base_size_width = unwrap_model(transformer3d).config.sample_width // p
+
+#     if p_t is None:
+#         # CogVideoX 1.0
+#         grid_crops_coords = get_resize_crop_region_for_grid(
+#             (grid_height, grid_width), base_size_width, base_size_height
+#         )
+#         freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
+#             embed_dim=unwrap_model(transformer3d).config.attention_head_dim,
+#             crops_coords=grid_crops_coords,
+#             grid_size=(grid_height, grid_width),
+#             temporal_size=num_frames,
+#             use_real=True,
+#         )
+#     else:
+#         # CogVideoX 1.5
+#         base_num_frames = (num_frames + p_t - 1) // p_t
+#         freqs_cos, freqs_sin = get_3d_rotary_pos_embed(
+#             embed_dim=unwrap_model(transformer3d).config.attention_head_dim,
+#             crops_coords=None,
+#             grid_size=(grid_height, grid_width),
+#             temporal_size=base_num_frames,
+#             grid_type="slice",
+#             max_size=(base_size_height, base_size_width),
+#         )
+#     freqs_cos = freqs_cos.to(device=device)
+#     freqs_sin = freqs_sin.to(device=device)
+#     return freqs_cos, freqs_sin
+
 
 def apply_frame_cropping(args, pixel_values, mask_pixel_values, mask, sample_n_frames_bucket_interval, accelerator, transformer3d, rng):
     """Apply random frame cropping"""

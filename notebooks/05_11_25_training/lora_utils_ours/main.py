@@ -85,13 +85,15 @@ import sys
 sys.path.append('/home/azhuravl/work/TrajectoryCrafter/notebooks/05_11_25_training/lora_utils_ours')
 
 from config import parse_args
-from model_loader import setup_models, setup_optimizer
+from model_loader import setup_models, setup_optimizer, freeze_lora_layers
 from data_utils import create_collate_fn
 from checkpoint_utils import setup_checkpoint_hooks, load_from_checkpoint
 from training_loop import run_training_loop
 from utils import get_random_downsample_ratio
 from validation import log_validation
 from dataset_latents import LatentsDataset
+from dataset_videos import SimpleValidationDataset  # Add this import
+
 
 if is_wandb_available():
     import wandb
@@ -174,15 +176,18 @@ def main():
     elif accelerator.mixed_precision == "bf16":
         weight_dtype = torch.bfloat16
         args.mixed_precision = accelerator.mixed_precision
+    print(f"Using weight dtype: {weight_dtype}")
 
     # Load scheduler
-    noise_scheduler = DDPMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
+    noise_scheduler = DDIMScheduler.from_pretrained(args.pretrained_model_name_or_path, subfolder="scheduler")
 
     # Setup models
     tokenizer, text_encoder, vae, transformer3d, network = setup_models(args, weight_dtype)
 
     # Setup checkpoint hooks
-    batch_sampler, first_epoch = setup_checkpoint_hooks(args, accelerator, network)
+    # batch_sampler, first_epoch = setup_checkpoint_hooks(args, accelerator, network)
+    first_epoch = 0  # Since we're using a simple DataLoader, start from epoch 0
+
 
     # Setup gradient checkpointing
     if args.gradient_checkpointing:
@@ -228,7 +233,8 @@ def main():
     # )
     
     train_dataset = LatentsDataset(
-        '/home/azhuravl/scratch/dataset_latents'
+        args.train_data_dir,
+        use_depth_latents=args.use_depth,
     )
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
@@ -239,7 +245,37 @@ def main():
     )
     
     #############################################
+
+    # Setup validation dataset
+    validation_data_dir = args.val_data_dir
+    val_dataset = None
+    val_dataloader = None
     
+    print(validation_data_dir)
+    
+    if os.path.exists(validation_data_dir):
+        val_dataset = SimpleValidationDataset(
+            validation_dir=validation_data_dir,
+            use_depth=args.use_depth,
+            # max_samples=1
+        )
+        
+        if len(val_dataset) > 0:
+            val_dataloader = torch.utils.data.DataLoader(
+                val_dataset, 
+                batch_size=1, 
+                shuffle=False, 
+                num_workers=8
+            )
+            logger.info(f"Validation dataset loaded with {len(val_dataset)} samples")
+        else:
+            logger.warning(f"No valid samples found in {validation_data_dir}")
+    else:
+        logger.warning(f"Validation directory {validation_data_dir} doesn't exist")
+    
+    
+    
+    ##############################################
 
     # Setup scheduler
     overrode_max_train_steps = False
@@ -292,12 +328,34 @@ def main():
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
     
+    # Duplicate freezing logic as a safety measure (after accelerator.prepare)    
+    # print("Applying additional LoRA layer freezing after accelerator preparation...")
+    # total_params, frozen_params, trainable_params = freeze_lora_layers(
+    #     network, num_frozen_layers=8, num_frozen_cross_layers=1
+    # )
+    
+    # log trainable parameters
+    logger.info("Trainable parameters:")
+    total_trainable_params = 0
+    for name, param in network.named_parameters():
+        if param.requires_grad:
+            param_count = param.numel()
+            logger.info(f"  {name}: {param_count} params")
+            total_trainable_params += param_count
+
+    logger.info(f"Total trainable parameters: {total_trainable_params:,}")
+    logger.info(f"Total trainable parameters: {total_trainable_params / 1e6:.2f}M")
+    
     global_step = 0
     first_epoch = 0
 
     # Load from checkpoint if specified
+    # global_step, first_epoch = load_from_checkpoint(
+    #     args, accelerator, network, optimizer, lr_scheduler, batch_sampler, 
+    #     num_update_steps_per_epoch
+    # )
     global_step, first_epoch = load_from_checkpoint(
-        args, accelerator, network, optimizer, lr_scheduler, batch_sampler, 
+        args, accelerator, network, optimizer, lr_scheduler, None, 
         num_update_steps_per_epoch
     )
 
@@ -311,9 +369,24 @@ def main():
     global_step = run_training_loop(
         args, accelerator, train_dataloader, network, optimizer, lr_scheduler,
         vae, text_encoder, tokenizer, transformer3d, noise_scheduler,
-        weight_dtype, global_step, first_epoch, batch_sampler,
-        save_model, log_validation, rng, torch_rng, index_rng
+        weight_dtype, global_step, first_epoch, None,
+        save_model, log_validation, rng, torch_rng, index_rng,
+        val_dataloader=val_dataloader  # Add this parameter
     )
+    
+    # Run training loop
+    # global_step = run_training_loop(
+    #     args, accelerator, train_dataloader, network, optimizer, lr_scheduler,
+    #     transformer3d, noise_scheduler,
+    #     weight_dtype, global_step, first_epoch, batch_sampler,
+    #     save_model, log_validation, rng, torch_rng, index_rng
+    # )
+    # global_step = run_training_loop(
+    #     args, accelerator, train_dataloader, network, optimizer, lr_scheduler,
+    #     transformer3d, noise_scheduler,
+    #     weight_dtype, global_step, first_epoch, None,  # Pass None for batch_sampler
+    #     save_model, log_validation, rng, torch_rng, index_rng
+    # )
 
     # Final cleanup and save
     accelerator.wait_for_everyone()
