@@ -12,7 +12,30 @@ from videox_fun.utils.utils import save_videos_grid
 from transformers import T5EncoderModel, T5Tokenizer
 from dataset_videos import SimpleValidationDataset
 
+import sys
+sys.path.append('/home/azhuravl/work/TrajectoryCrafter/notebooks/22_10_25_scaling_up')
+from generate_sceneflow import apply_colormap_to_depth
+
 logger = get_logger(__name__, log_level="INFO")
+
+
+def convert_depth_sample_to_rgb(depth_tensor):
+    # sample (1, C, T, H, W)
+    # input [T, H, W]
+    # output [T, H, W, 3]
+    
+    depth_thw = depth_tensor.mean(dim=1, keepdim=False)[0]  # [T, H, W]
+    
+    # unnormalize depth to min 1, max 100, 
+    # set values where depth_thw is zero to zero
+    depth_thw_unnorm = depth_thw * (100.0 - 1.0) + 1.0
+    depth_thw_unnorm = torch.where(depth_thw > 0, depth_thw_unnorm, torch.zeros_like(depth_thw_unnorm))
+    
+    depth_colormap = apply_colormap_to_depth(depth_thw_unnorm, inverse=True)  # [T, H, W, 3]
+    depth_bcthw = depth_colormap.permute(3, 0, 1, 2).unsqueeze(0)  # [1, 3, T, H, W]
+    return depth_bcthw
+    
+
 
 def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, accelerator, weight_dtype, global_step, val_dataloader=None):
     try:
@@ -70,7 +93,7 @@ def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, a
             generator = None
         else:
             generator = torch.Generator(device=accelerator.device).manual_seed(args.seed)
-
+            
         # Run validation with real data
         validation_output_dir = os.path.join(args.output_dir, "validation_results")
         os.makedirs(validation_output_dir, exist_ok=True)
@@ -117,6 +140,12 @@ def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, a
                     input_video_cpu = input_video.cpu()
                     warped_video_cpu = warped_video.cpu()
                     masks_cpu = masks.cpu()
+                    
+                    if args.use_depth:
+                        # Apply colormap to depth videos for better visualization
+                        sample_cpu = convert_depth_sample_to_rgb(sample_cpu)
+                        input_video_cpu = convert_depth_sample_to_rgb(input_video_cpu)
+                        warped_video_cpu = convert_depth_sample_to_rgb(warped_video_cpu)
                     
                     # Save generated video as MP4
                     output_filename = f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_gen.mp4"

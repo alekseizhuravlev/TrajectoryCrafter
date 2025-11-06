@@ -1,4 +1,3 @@
-# TODO
 # training fully in latent space
 # dataset for latents
 # make cropped checkpoints for crosstransformer
@@ -6,17 +5,27 @@
 # check which latents should be used for input
 # validation loop
 # checkpointing
-
-
-# TODO
 # less hyperparams
+
 # increase dataset size
 # test with RGB first
 # then put depth
 
-# TODO
 # + validation is working
-# + is training loop working?
+# is training loop working?
+# training: 1k monkaa
+# test: 50 monkaa + 50 driving
+# test on both RGB and depth
+
+# TODO
+# why is depth visualized wrong?
+# lora on full model
+# output results on training data
+
+# driving: only use slow split
+# print the first name of the sample
+# later: make datasets for VKITTI and TartanAirs
+
 
 import os
 import gc
@@ -219,7 +228,7 @@ def run_training_loop(
                 train_loss = 0.0
 
                 if global_step % args.checkpointing_steps == 0:
-                    handle_checkpointing(args, accelerator, global_step, save_model_fn, network)
+                    handle_checkpointing(args, accelerator, global_step, save_model, network)
 
                 if accelerator.is_main_process:
                     if hasattr(args, 'validation_steps') and global_step % args.validation_steps == 0:
@@ -236,7 +245,7 @@ def run_training_loop(
 
         # Validation at epoch end
         if accelerator.is_main_process:
-            if hasattr(args, 'validation_epochs') and (epoch % args.validation_epochs == 0 or (epoch == args.num_train_epochs - 1)):
+            if hasattr(args, 'validation_epochs') and (epoch % args.validation_epochs == 0 and epoch != 0 or (epoch == args.num_train_epochs - 1)):
                 log_validation(
                     vae, text_encoder, tokenizer, transformer3d, network, args, 
                     accelerator, weight_dtype, global_step, val_dataloader=val_dataloader

@@ -126,7 +126,12 @@ def make_dimensions_even(tensor):
 
 
 def apply_colormap_to_depth(depth_tensor, colormap='viridis', inverse=True):
-    """Apply colormap to depth tensor for better visualization"""
+    """
+    Apply colormap to depth tensor for better visualization
+    
+    Input: [T, H, W] - Time/batch dimension, Height, Width (single channel depth)
+    Output: [T, H, W, 3] - Same spatial dimensions but with RGB color channels
+    """
     # Create mask for zero values
     zero_mask = (depth_tensor == 0)
     
@@ -328,7 +333,13 @@ def encode_inputs_to_latents(
                     
                     # Create masked video (use init_video as base)
                     if masked_video_latents is None and init_video is not None:
-                        masked_video = init_video  # Use the conditioning video
+                        
+                        # masked_video = init_video  # Use the conditioning video
+                                # Apply the mask properly: preserve known regions, mask unknown regions
+                        masked_video = (
+                            init_video * (mask_condition_tile < 0.5)
+                            + torch.ones_like(init_video) * (mask_condition_tile > 0.5) * -1
+                        )
                     else:
                         masked_video = masked_video_latents or init_video
                     
@@ -545,8 +556,8 @@ if __name__ == "__main__":
         sample_len=59,
         things_test=False,
         add_things=False,
-        add_monkaa=True,
-        add_driving=False,
+        add_monkaa=False,
+        add_driving=True,
         split="test",
         stride=5,
     )
@@ -570,7 +581,9 @@ if __name__ == "__main__":
     # Track processed samples and current index
     samples_processed = 0
     current_idx = 0
-    target_samples = 100
+    target_samples = 1000
+    
+    dataset_name = 'driving_1000'
 
     while samples_processed < target_samples and current_idx < len(dataset_driving):
         
@@ -642,7 +655,7 @@ if __name__ == "__main__":
         #####################################################
 
         # Create save directory for this sample
-        save_dir = f'/home/azhuravl/scratch/datasets_latents/sceneflow_depth/{samples_processed:03d}'
+        save_dir = f'/home/azhuravl/scratch/datasets_latents/{dataset_name}/{samples_processed:03d}'
         os.makedirs(f'{save_dir}/videos', exist_ok=True)
 
 

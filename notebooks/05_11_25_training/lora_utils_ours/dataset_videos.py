@@ -57,7 +57,9 @@ class SimpleValidationDataset(Dataset):
                         self.sample_folders.append(folder_path)
         
         if max_samples is not None:
-            self.sample_folders = self.sample_folders[:max_samples]
+            # self.sample_folders = self.sample_folders[:max_samples]
+            # select random samples
+            self.sample_folders = list(np.random.choice(self.sample_folders, size=max_samples, replace=False))
         
         mode = "depth" if use_depth else "RGB"
         print(f"Found {len(self.sample_folders)} validation samples ({mode} mode)")
@@ -77,10 +79,10 @@ class SimpleValidationDataset(Dataset):
         
         if self.use_depth:
             # Load depth tensors
-            ref_depths = torch.load(os.path.join(videos_path, 'ref_depths.pt'), map_location='cpu')  # [T, 1, H, W]
-            input_depths = torch.load(os.path.join(videos_path, 'input_depths.pt'), map_location='cpu')  # [T, 1, H, W]
-            warped_depths = torch.load(os.path.join(videos_path, 'warped_depths.pt'), map_location='cpu')  # [T, 1, H, W]
-            
+            ref_depths = torch.load(os.path.join(videos_path, 'ref_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
+            input_depths = torch.load(os.path.join(videos_path, 'input_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
+            warped_depths = torch.load(os.path.join(videos_path, 'warped_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
+
             # Still load RGB masks
             masks = self._read_video(os.path.join(videos_path, 'masks.mp4'))
             
@@ -94,9 +96,9 @@ class SimpleValidationDataset(Dataset):
             ref_video = ref_video[:ref_frames]  # [ref_frames, 1, H, W]
             
             # Convert to [C, T, H, W] format to match RGB format
-            ref_video = ref_video.permute(1, 0, 2, 3)  # [1, ref_frames, H, W]
-            input_video = input_video.permute(1, 0, 2, 3)  # [1, T, H, W]
-            warped_video = warped_video.permute(1, 0, 2, 3)  # [1, T, H, W]
+            ref_video = ref_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, ref_frames, H, W]
+            input_video = input_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, T, H, W]
+            warped_video = warped_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, T, H, W]
             
         else:
             # Load RGB videos (original code)

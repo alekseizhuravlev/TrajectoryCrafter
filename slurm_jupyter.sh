@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p gpu24            # Partition name
-#SBATCH -t 14:00:00                # Time limit (HH:MM:SS)
+#SBATCH -t 12:00:00                # Time limit (HH:MM:SS)
 #SBATCH -o /home/azhuravl/nobackup/slurm_out/jupyter-%j.out   # Standard output log
 #SBATCH --job-name=jupyter       # Job name (used in log filenames)
 #SBATCH --gres=gpu:h100:1              # Request 1 GPU

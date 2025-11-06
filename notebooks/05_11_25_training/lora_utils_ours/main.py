@@ -50,6 +50,7 @@ from tqdm.auto import tqdm
 from transformers.utils import ContextManagers
 
 import datasets
+import json
 
 # Add project paths
 current_file_path = os.path.abspath(__file__)
@@ -94,6 +95,8 @@ from validation import log_validation
 from dataset_latents import LatentsDataset
 from dataset_videos import SimpleValidationDataset  # Add this import
 
+
+import sys
 
 if is_wandb_available():
     import wandb
@@ -140,8 +143,26 @@ def main():
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
+        handlers=[
+            logging.FileHandler(os.path.join(args.output_dir, "training.log")),
+            logging.StreamHandler(sys.stdout)  # Console output
+        ]
     )
     logger.info(accelerator.state, main_process_only=False)
+    
+    # Save args to JSON file for later reference
+    if accelerator.is_main_process:
+        args_dict = vars(args)
+        args_file = os.path.join(args.output_dir, "training_args.json")
+        with open(args_file, 'w') as f:
+            json.dump(args_dict, f, indent=2, default=str)  # default=str handles non-serializable objects
+        logger.info(f"Training arguments saved to {args_file}")
+
+    # Also log to console
+    logger.info("Training Arguments:")
+    for arg, value in vars(args).items():
+        logger.info(f"  {arg}: {value}")
+    
     
     if accelerator.is_local_main_process:
         datasets.utils.logging.set_verbosity_warning()
@@ -254,11 +275,21 @@ def main():
     print(validation_data_dir)
     
     if os.path.exists(validation_data_dir):
-        val_dataset = SimpleValidationDataset(
+        
+        val_dataset_train = SimpleValidationDataset(
+            validation_dir=args.train_data_dir,
+            use_depth=args.use_depth,
+            max_samples=args.max_val_samples,
+        )
+                
+        val_dataset_test = SimpleValidationDataset(
             validation_dir=validation_data_dir,
             use_depth=args.use_depth,
-            # max_samples=1
+            max_samples=args.max_val_samples,
         )
+        
+        # combine datasets
+        val_dataset = torch.utils.data.ConcatDataset([val_dataset_train, val_dataset_test])
         
         if len(val_dataset) > 0:
             val_dataloader = torch.utils.data.DataLoader(

@@ -262,6 +262,12 @@ def parse_args():
         help="Run validation every X steps.",
     )
     parser.add_argument(
+        "--max_val_samples",
+        type=int,
+        default=None,
+        help="Maximum number of validation samples.",
+    )
+    parser.add_argument(
         "--tracker_project_name",
         type=str,
         default="text2image-fine-tune",

@@ -962,7 +962,10 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
                 if num_channels_transformer != num_channels_latents:
                     mask_condition_tile = torch.tile(mask_condition, [1, 3, 1, 1, 1])
                     if masked_video_latents is None:
-                        # 在 mask_condition_tile 小于 0.5(即0,首帧) 的位置，masked_video 保留 init_video 的值；在 mask_condition_tile 大于 0.5（即1） 的位置，masked_video 的值被设置为 -1
+                        # At positions where mask_condition_tile is less than 0.5
+                        # (i.e., 0, the first frame), masked_video retains the value of init_video;
+                        # at positions where mask_condition_tile is greater than 0.5 (i.e., 1),
+                        # the value of masked_video is set to -1.
                         masked_video = (
                             init_video * (mask_condition_tile < 0.5)
                             + torch.ones_like(init_video)
@@ -984,9 +987,9 @@ class TrajCrafter_Pipeline(DiffusionPipeline):
                         do_classifier_free_guidance,
                         noise_aug_strength=noise_aug_strength,
                     )
-                    # mask at latent size, 1 is valid,第一帧变成1,后面变成0
+                    # Mask at latent size: 1 is valid; the first frame becomes 1, and subsequent frames become 0.
                     mask_latents = resize_mask(1 - mask_condition, masked_video_latents)
-                    # 缩放1的数值
+                    # Scale the value by 1
                     mask_latents = (
                         mask_latents.to(masked_video_latents.device)
                         * self.vae.config.scaling_factor

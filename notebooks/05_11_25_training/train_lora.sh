@@ -16,15 +16,19 @@ echo "Output directory: $OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
 
-export TRAIN_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/sceneflow"
-export VAL_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/sceneflow_val"
+export TRAIN_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/monkaa_1000"
+export VAL_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/driving_1000"
 
-
+# --use_depth \
 accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_utils_ours/main.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
   --train_data_dir=$TRAIN_DATASET_NAME \
   --val_data_dir=$VAL_DATASET_NAME \
+  --max_val_samples=8 \
   --train_data_meta=$DATASET_META_NAME \
+  --use_depth \
+  --rank 4 \
+  --network_alpha 4 \
   --image_sample_size=1024 \
   --video_sample_size=256 \
   --token_sample_size=512 \
