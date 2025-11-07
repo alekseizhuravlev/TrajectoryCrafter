@@ -205,9 +205,18 @@ def main():
     # Setup models
     tokenizer, text_encoder, vae, transformer3d, network = setup_models(args, weight_dtype)
 
+
+    # Define save model function
+    def save_model(ckpt_file, unwrapped_nw):
+        os.makedirs(args.output_dir, exist_ok=True)
+        accelerator.print(f"\nsaving checkpoint: {ckpt_file}")
+        unwrapped_nw.save_weights(ckpt_file, weight_dtype, None)
+
+
     # Setup checkpoint hooks
     # batch_sampler, first_epoch = setup_checkpoint_hooks(args, accelerator, network)
-    first_epoch = 0  # Since we're using a simple DataLoader, start from epoch 0
+    first_epoch = setup_checkpoint_hooks(args, accelerator, network, save_model_fn=save_model)  # Pass None for save_model_fn
+    # first_epoch = 0  # Since we're using a simple DataLoader, start from epoch 0
 
 
     # Setup gradient checkpointing
@@ -385,16 +394,16 @@ def main():
     #     args, accelerator, network, optimizer, lr_scheduler, batch_sampler, 
     #     num_update_steps_per_epoch
     # )
+    # global_step, first_epoch = load_from_checkpoint(
+    #     args, accelerator, network, optimizer, lr_scheduler, None, 
+    #     num_update_steps_per_epoch
+    # )
+
+    # Load from checkpoint (remove batch_sampler parameter)
     global_step, first_epoch = load_from_checkpoint(
-        args, accelerator, network, optimizer, lr_scheduler, None, 
+        args, accelerator, network, optimizer, lr_scheduler, 
         num_update_steps_per_epoch
     )
-
-    # Define save model function
-    def save_model(ckpt_file, unwrapped_nw):
-        os.makedirs(args.output_dir, exist_ok=True)
-        accelerator.print(f"\nsaving checkpoint: {ckpt_file}")
-        unwrapped_nw.save_weights(ckpt_file, weight_dtype, None)
 
     # Run training loop
     global_step = run_training_loop(

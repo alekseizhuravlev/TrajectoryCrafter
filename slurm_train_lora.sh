@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p gpu22            # Partition name
-#SBATCH -t 11:00:00                # Time limit (HH:MM:SS)
+#SBATCH -t 12:00:00                # Time limit (HH:MM:SS)
 #SBATCH -o /home/azhuravl/nobackup/slurm_out/train_lora-%j.out   # Standard output log
 #SBATCH --job-name=train_lora       # Job name (used in log filenames)
 #SBATCH --gres=gpu:a100:1              # Request 1 GPU

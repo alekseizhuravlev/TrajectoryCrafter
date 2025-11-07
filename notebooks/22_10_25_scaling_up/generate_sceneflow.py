@@ -142,10 +142,16 @@ def apply_colormap_to_depth(depth_tensor, colormap='viridis', inverse=True):
         depth_processed = depth_tensor
     
     # Normalize non-zero values to [0, 1]
-    if depth_processed[~zero_mask].numel() > 0:
+    if depth_processed[~zero_mask].numel() > 0 and not inverse:
         depth_norm = depth_processed / depth_processed[~zero_mask].max()
     else:
         depth_norm = depth_processed
+        
+        
+    # print(f'min depth (after processing): {depth_norm[~zero_mask].min().item() if depth_norm[~zero_mask].numel() > 0 else 0.0}, max depth: {depth_norm[~zero_mask].max().item() if depth_norm[~zero_mask].numel() > 0 else 0.0}')
+    depth_norm[0, 0, 0] = 0.0  # For consistent colormap scaling in case of single value
+    depth_norm[0, 0, 1] = 1.0
+    
     
     # Convert to numpy and apply colormap
     depth_np = depth_norm.cpu().numpy()
@@ -160,6 +166,63 @@ def apply_colormap_to_depth(depth_tensor, colormap='viridis', inverse=True):
     depth_colored_tensor[zero_mask_expanded] = 0.0  # Black for zero depth
     
     return depth_colored_tensor
+
+
+# def apply_colormap_to_depth(depth_tensor, colormap='viridis', inverse=True, vmin=None, vmax=None):
+#     """
+#     Apply colormap to depth tensor for better visualization
+    
+#     Args:
+#         depth_tensor: Input depth tensor of shape [T, H, W]
+#         colormap: Matplotlib colormap name (default: 'viridis')
+#         inverse: If True, applies inverse depth transformation (default: True)
+#         vmin: Minimum value for colormap normalization (default: None, auto-compute)
+#         vmax: Maximum value for colormap normalization (default: None, auto-compute)
+    
+#     Returns:
+#         depth_colored_tensor: RGB colored depth tensor of shape [T, H, W, 3]
+#     """
+#     # Create mask for zero values
+#     zero_mask = (depth_tensor == 0)
+    
+#     if inverse:
+#         # Compute inverse depth, avoid division by zero
+#         depth_processed = torch.where(depth_tensor > 0, 1.0 / depth_tensor, torch.zeros_like(depth_tensor))
+#     else:
+#         depth_processed = depth_tensor
+    
+#     # Determine normalization range
+#     if vmin is None or vmax is None:
+#         if depth_processed[~zero_mask].numel() > 0:
+#             computed_min = depth_processed[~zero_mask].min().item()
+#             computed_max = depth_processed[~zero_mask].max().item()
+#             if vmin is None:
+#                 vmin = computed_min
+#             if vmax is None:
+#                 vmax = computed_max
+#         else:
+#             vmin = vmin or 0.0
+#             vmax = vmax or 1.0
+    
+#     # Normalize to [0, 1] using specified range
+#     if vmax > vmin:
+#         depth_norm = torch.clamp((depth_processed - vmin) / (vmax - vmin), 0.0, 1.0)
+#     else:
+#         depth_norm = torch.zeros_like(depth_processed)
+    
+#     # Convert to numpy and apply colormap
+#     depth_np = depth_norm.cpu().numpy()
+#     colormap_func = matplotlib.colormaps.get_cmap(colormap)
+#     depth_colored = colormap_func(depth_np)  # Returns RGBA
+    
+#     # Convert back to tensor, drop alpha channel
+#     depth_colored_tensor = torch.from_numpy(depth_colored[..., :3]).to(depth_tensor.device)
+    
+#     # Set zero depth areas to black
+#     zero_mask_expanded = zero_mask.unsqueeze(-1).expand_as(depth_colored_tensor)
+#     depth_colored_tensor[zero_mask_expanded] = 0.0  # Black for zero depth
+    
+#     return depth_colored_tensor
 
 
 def encode_inputs_to_latents(

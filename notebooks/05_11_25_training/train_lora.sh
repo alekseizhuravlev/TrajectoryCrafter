@@ -9,26 +9,40 @@ NCCL_DEBUG=INFO
 BASE_OUTPUT_DIR="/home/azhuravl/work/TrajectoryCrafter/experiments"
 DATE_DIR=$(date +"%d-%m-%Y")
 TIME_DIR=$(date +"%H-%M-%S")
-OUTPUT_DIR="$BASE_OUTPUT_DIR/$DATE_DIR/$TIME_DIR"
+# OUTPUT_DIR="$BASE_OUTPUT_DIR/$DATE_DIR/$TIME_DIR"
+
+OUTPUT_DIR="/home/azhuravl/work/TrajectoryCrafter/experiments/07-11-2025/13-33-14_copy"
 
 echo "Output directory: $OUTPUT_DIR"
 # Create the directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
 
+
+
 export TRAIN_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/monkaa_1000"
 export VAL_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/driving_1000"
 
+# get random seed
+# seed=$((RANDOM % 10000))
+seed=42
+
 # --use_depth \
+# --val_before_training
+# --save_state \
+
+# --resume_from_checkpoint "" \
 accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_utils_ours/main.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
   --train_data_dir=$TRAIN_DATASET_NAME \
   --val_data_dir=$VAL_DATASET_NAME \
-  --max_val_samples=8 \
+  --max_val_samples=2 \
   --train_data_meta=$DATASET_META_NAME \
   --use_depth \
   --rank 4 \
   --network_alpha 4 \
+  --resume_from_checkpoint "latest" \
+  --seed=$seed \
   --image_sample_size=1024 \
   --video_sample_size=256 \
   --token_sample_size=512 \
@@ -39,11 +53,10 @@ accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_util
   --gradient_accumulation_steps=1 \
   --dataloader_num_workers=8 \
   --num_train_epochs=50 \
-  --checkpointing_steps=10000 \
-  --validation_steps=10000 \
+  --checkpointing_steps=1000 \
+  --validation_steps=1000 \
   --validation_epochs=5 \
   --learning_rate=1e-04 \
-  --seed=42 \
   --output_dir="$OUTPUT_DIR" \
   --gradient_checkpointing \
   --mixed_precision="bf16" \

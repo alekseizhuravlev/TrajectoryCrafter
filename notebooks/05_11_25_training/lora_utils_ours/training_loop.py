@@ -17,10 +17,24 @@
 # test: 50 monkaa + 50 driving
 # test on both RGB and depth
 
-# TODO
 # why is depth visualized wrong?
 # lora on full model
 # output results on training data
+
+# TODO
+# error metrics for rgb and depth
+# look at inpainted depth
+
+# load checkpoints properly
+# calculate error metrics for step 0 and last step
+# send an update
+
+# pass RGB video as control latents, warped depth as inpaint latents
+# change train / val datasets to return both depth and RGB
+# change train / val loops
+
+# fine-tune depthcrafter
+
 
 # driving: only use slow split
 # print the first name of the sample
@@ -85,7 +99,7 @@ def run_training_loop(
             # Data batch sanity check
             if epoch == first_epoch and step == 0:
                 _perform_sanity_check_trajectorycrafter_latents(args, batch, global_step)
-                if accelerator.is_main_process:
+                if accelerator.is_main_process and args.val_before_training:
                     log_validation(
                         vae, text_encoder, tokenizer, transformer3d, network, args, 
                         accelerator, weight_dtype, global_step, val_dataloader=val_dataloader
@@ -227,7 +241,7 @@ def run_training_loop(
                 accelerator.log({"train_loss": train_loss}, step=global_step)
                 train_loss = 0.0
 
-                if global_step % args.checkpointing_steps == 0:
+                if global_step % args.checkpointing_steps == 0 or global_step == 1:
                     handle_checkpointing(args, accelerator, global_step, save_model, network)
 
                 if accelerator.is_main_process:

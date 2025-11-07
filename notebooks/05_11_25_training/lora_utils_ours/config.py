@@ -122,6 +122,11 @@ def parse_args():
         help="Whether or not to use gradient checkpointing to save memory at the expense of slower backward pass.",
     )
     parser.add_argument(
+        "--val_before_training",
+        action="store_true",
+        help="Whether to run validation before starting training."
+    )
+    parser.add_argument(
         "--learning_rate",
         type=float,
         default=1e-4,
