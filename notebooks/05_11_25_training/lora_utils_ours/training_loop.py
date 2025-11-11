@@ -21,7 +21,6 @@
 # lora on full model
 # output results on training data
 
-# TODO
 # error metrics for rgb and depth
 # look at inpainted depth
 
@@ -29,9 +28,37 @@
 # calculate error metrics for step 0 and last step
 # send an update
 
+
 # pass RGB video as control latents, warped depth as inpaint latents
 # change train / val datasets to return both depth and RGB
 # change train / val loops
+
+# during training, how many ref frames don't OOM?
+# generate a dataset with that many ref frames
+# train with that many ref frames
+
+
+#   prompt_embeds: torch.Size([1, 226, 4096]), mean: 0.000950, std: 0.148438                                                                        
+#   negative_prompt_embeds: torch.Size([1, 226, 4096]), mean: 0.001762, std: 0.144531                                                               
+#   ref_latents: torch.Size([1, 13, 16, 48, 84]), mean: 0.058105, std: 0.753906                                                                     
+#   gt_video_latents: torch.Size([1, 13, 16, 48, 84]), mean: -0.054443, std: 0.722656                                                               
+#   cond_video_latents: torch.Size([1, 13, 16, 48, 84]), mean: -0.058594, std: 0.742188                                                             
+#   mask_latents: torch.Size([1, 13, 1, 48, 84]), mean: 0.644531, std: 0.181641                                                                     
+#   masked_video_latents: torch.Size([1, 13, 16, 48, 84]), mean: -0.081055, std: 0.898438                                        
+#   NOT USED, mask: torch.Size([1, 16, 16, 48, 84]), mean: 0.095703, std: 0.289062
+
+# why is mask this shape
+
+# can we use 49 ref frames?
+
+# TODO
+# train 16 layers for depth
+# train actual layers, not lora
+
+
+# TODO
+# find good video depth / point maps code with TRAINING, suitable for fine-tuning with existing 4D structure (on existing depth)
+
 
 # fine-tune depthcrafter
 
@@ -68,6 +95,14 @@ def run_training_loop(
     val_dataloader=None  # Add this parameter
 ):
     """Main training loop for TrajectoryCrafter with pre-encoded latents and CFG support"""
+    
+    print(vae.device, text_encoder.device, transformer3d.device)
+    
+    vae.to('cpu')
+    text_encoder.to('cpu')
+    
+    print(vae.device, text_encoder.device, transformer3d.device)
+    
     
     # Setup progress bar
     progress_bar = tqdm(
@@ -109,6 +144,7 @@ def run_training_loop(
                 # Get all pre-encoded latents from dataset
                 target_latents = batch["gt_video_latents"].to(weight_dtype)
                 reference_latents = batch["ref_latents"].to(weight_dtype)
+                # print(reference_latents.shape)
                 
                 # Handle inpaint latents - concatenate mask and masked video if separate
                 if "mask_latents" in batch and "masked_video_latents" in batch:
@@ -253,6 +289,11 @@ def run_training_loop(
 
             logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
+            
+            # if global_step % 10 == 0:
+            #     torch.cuda.memory._dump_snapshot(f"{args.output_dir}/snapshot_{global_step:04d}.pickle")
+                    
+            
 
             if global_step >= args.max_train_steps:
                 break

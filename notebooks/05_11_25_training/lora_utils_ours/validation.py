@@ -252,6 +252,7 @@ def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, a
                     input_video_cpu = input_video.cpu()
                     warped_video_cpu = warped_video.cpu()
                     masks_cpu = masks.cpu()
+                    ref_video_cpu = ref_video.cpu()
                     
                     if args.use_depth:
                         # Calculate depth errors
@@ -281,8 +282,8 @@ def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, a
                             json.dump(depth_errors, f, indent=2)
                             
                         # save depth sample as pt 
-                        depth_sample_file = os.path.join(validation_output_dir, f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_gen_depth.pt")
-                        torch.save(sample_cpu, depth_sample_file)
+                        # depth_sample_file = os.path.join(validation_output_dir, f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_gen_depth.pt")
+                        # torch.save(sample_cpu, depth_sample_file)
                         
                         # Apply colormap for visualization
                         sample_cpu = convert_depth_sample_to_rgb(sample_cpu)
@@ -320,10 +321,19 @@ def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, a
                         os.path.join(validation_output_dir, mask_filename)
                     )
                     
-                    logger.info(f"  Saved validation outputs for {sample_name}")
+                    # Save reference video as MP4
+                    ref_filename = f"step_{global_step:06d}_sample_{i:02d}_{sample_name}_ref.mp4"
+                    save_videos_grid(
+                        ref_video_cpu,
+                        os.path.join(validation_output_dir, ref_filename)
+                    )
 
-        
-        
+                logger.info(f"  Saved validation outputs for {sample_name}")
+                
+                gc.collect()
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+
         # save error metrics summary
         if args.use_depth:
             # Calculate mean errors for both splits
@@ -379,6 +389,15 @@ def log_validation(vae, text_encoder, tokenizer, transformer3d, network, args, a
         gc.collect()
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+        
+            
+        # print(vae.device, text_encoder.device, transformer3d.device)
+        
+        vae.to('cpu')
+        text_encoder.to('cpu')
+        
+        # print(vae.device, text_encoder.device, transformer3d.device)
+        
         
     except Exception as e:
         gc.collect()

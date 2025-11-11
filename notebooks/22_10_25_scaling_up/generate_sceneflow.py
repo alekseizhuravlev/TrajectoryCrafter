@@ -379,7 +379,7 @@ def encode_inputs_to_latents(
                 
                 results['mask_latents'] = rearrange(mask_latents, "b c f h w -> b f c h w").cpu()
                 results['masked_video_latents'] = rearrange(masked_video_latents, "b c f h w -> b f c h w").cpu()
-                results['mask'] = None
+                # results['mask'] = None
             else:
                 # Process mask condition
                 mask_condition = pipeline.mask_processor.preprocess(
@@ -448,7 +448,7 @@ def encode_inputs_to_latents(
                     
                     results['mask_latents'] = mask_input.cpu()
                     results['masked_video_latents'] = masked_video_latents_input.cpu()
-                    results['mask'] = mask_final.cpu()
+                    # results['mask'] = mask_final.cpu()
                 else:
                     # Non-inpainting model case
                     mask = torch.tile(mask_condition, [1, num_channels_latents, 1, 1, 1])
@@ -459,14 +459,14 @@ def encode_inputs_to_latents(
                         align_corners=True
                     )
                     mask_final = rearrange(mask, "b c f h w -> b f c h w")
-                    results['mask'] = mask_final.cpu()
+                    # results['mask'] = mask_final.cpu()
                     results['mask_latents'] = None
                     results['masked_video_latents'] = None
     
     # for all latents, squeeze the batch dimension
     for key in results:
         if results[key] is not None and results[key].shape[0] == 1:
-            print(f"squeezing {key} from shape {results[key].shape}")
+            # print(f"squeezing {key} from shape {results[key].shape}")
             results[key] = results[key].squeeze(0)
     
     return results
@@ -606,6 +606,50 @@ def load_trajcrafter():
     return trajcrafter, opts
 
 
+def encode_video_to_latents(pipeline, video, height, width, device, batch_size=1):
+    """
+    Encode any video to latents using the pipeline's VAE.
+    
+    Args:
+        pipeline: The TrajCrafter pipeline instance
+        video: Video tensor of shape [b, c, f, h, w]
+        height: Target height for processing
+        width: Target width for processing
+        device: Device to use for computation
+        batch_size: Batch size for encoding (default: 1)
+    
+    Returns:
+        video_latents: Encoded video latents in format [b, f, c, h, w]
+    """
+    num_frames = video.shape[2]
+    
+    # Preprocess video
+    processed_video = pipeline.image_processor.preprocess(
+        rearrange(video, "b c f h w -> (b f) c h w"), 
+        height=height, 
+        width=width
+    )
+    processed_video = rearrange(processed_video, "(b f) c h w -> b c f h w", f=num_frames)
+    processed_video = processed_video.to(device=device, dtype=pipeline.vae.dtype)
+    
+    # Encode video in batches
+    bs = batch_size
+    encoded_chunks = []
+    for i in range(0, processed_video.shape[0], bs):
+        video_chunk = processed_video[i : i + bs]
+        encoded_chunk = pipeline.vae.encode(video_chunk)[0]
+        encoded_chunk = encoded_chunk.sample()
+        encoded_chunks.append(encoded_chunk)
+    
+    # Concatenate and scale
+    encoded_video = torch.cat(encoded_chunks, dim=0)
+    encoded_video = encoded_video * pipeline.vae.config.scaling_factor
+    video_latents = encoded_video.repeat(batch_size // encoded_video.shape[0], 1, 1, 1, 1)
+    
+    # Rearrange for final storage [b, c, f, h, w] -> [b, f, c, h, w]
+    video_latents = rearrange(video_latents, "b c f h w -> b f c h w")
+    
+    return video_latents
 
 
 
@@ -619,8 +663,8 @@ if __name__ == "__main__":
         sample_len=59,
         things_test=False,
         add_things=False,
-        add_monkaa=False,
-        add_driving=True,
+        add_monkaa=True,
+        add_driving=False,
         split="test",
         stride=5,
     )
@@ -630,6 +674,12 @@ if __name__ == "__main__":
     warper_old = utils.Warper(device='cuda')
     
     trajcrafter, opts = load_trajcrafter()
+    
+    # disable gradients
+    trajcrafter.pipeline.vae.requires_grad_(False)
+    trajcrafter.pipeline.text_encoder.requires_grad_(False)
+    trajcrafter.pipeline.transformer.requires_grad_(False)
+
 
 
     # Initialize motion filter
@@ -646,7 +696,7 @@ if __name__ == "__main__":
     current_idx = 0
     target_samples = 1000
     
-    dataset_name = 'driving_1000'
+    dataset_name = 'monkaa_wrev_ref_latents'
 
     while samples_processed < target_samples and current_idx < len(dataset_driving):
         
@@ -832,26 +882,28 @@ if __name__ == "__main__":
         #####################################################
         
         mask_video = (1.0 - masks_tensor_resized.permute(1, 0, 2, 3).unsqueeze(0)) * 255.0
+        
+        print('mask_video.shape', mask_video.shape)
 
-
-        latents_dict = encode_inputs_to_latents(
-            trajcrafter.pipeline,
-            video=cond_video_twice_resized.permute(1, 0, 2, 3).unsqueeze(0).to('cuda'),
-            reference=frames_tensor_resized[:10].permute(1, 0, 2, 3).unsqueeze(0).to('cuda'),
-            mask_video=mask_video.to('cuda'),
-            masked_video_latents=None,
-            prompt=caption,
-            negative_prompt=opts.negative_prompt,
-            height=384,
-            width=672,
-            device="cuda",
-            batch_size=1,
-            noise_aug_strength=0.0563,
-            max_sequence_length=226,
-            do_classifier_free_guidance=True,
-            ground_truth_video=frames_tensor_resized[10:].permute(1, 0, 2, 3).unsqueeze(0).to('cuda'),  # GT video for training
-            encode_for_training=True  # Flag to indicate training vs inference
-        )
+        with torch.no_grad():
+            latents_dict = encode_inputs_to_latents(
+                trajcrafter.pipeline,
+                video=cond_video_twice_resized.permute(1, 0, 2, 3).unsqueeze(0).to('cuda'),
+                reference=frames_tensor_resized[:10].permute(1, 0, 2, 3).unsqueeze(0).to('cuda'),
+                mask_video=mask_video.to('cuda'),
+                masked_video_latents=None,
+                prompt=caption,
+                negative_prompt=opts.negative_prompt,
+                height=384,
+                width=672,
+                device="cuda",
+                batch_size=1,
+                noise_aug_strength=0.0563,
+                max_sequence_length=226,
+                do_classifier_free_guidance=True,
+                ground_truth_video=frames_tensor_resized[10:].permute(1, 0, 2, 3).unsqueeze(0).to('cuda'),  # GT video for training
+                encode_for_training=True  # Flag to indicate training vs inference
+            )
         
         
         torch.save(
@@ -887,30 +939,63 @@ if __name__ == "__main__":
 
         # permute, repeat, unsqueeze, to cuda
 
-
-        latents_dict_depths = encode_inputs_to_latents(
-            trajcrafter.pipeline,
-            video=warped_depths_tensor_resized_norm.permute(1, 0, 2, 3).repeat(3, 1, 1, 1).unsqueeze(0).to('cuda'),
-            reference=depths_resized_norm[:10].permute(1, 0, 2, 3).repeat(3, 1, 1, 1).unsqueeze(0).to('cuda'),
-            mask_video=mask_video.to('cuda'),
-            masked_video_latents=None,
-            prompt=caption,
-            negative_prompt=opts.negative_prompt,
-            height=384,
-            width=672,
-            device="cuda",
-            batch_size=1,
-            noise_aug_strength=0.0563,
-            max_sequence_length=226,
-            do_classifier_free_guidance=True,
-            ground_truth_video=depths_resized_norm[10:].permute(1, 0, 2, 3).repeat(3, 1, 1, 1).unsqueeze(0).to('cuda'),  # GT video for training
-            encode_for_training=True  # Flag to indicate training vs inference
-        )
+        with torch.no_grad():
+            latents_dict_depths = encode_inputs_to_latents(
+                trajcrafter.pipeline,
+                video=warped_depths_tensor_resized_norm.permute(1, 0, 2, 3).repeat(3, 1, 1, 1).unsqueeze(0).to('cuda'),
+                reference=depths_resized_norm[:10].permute(1, 0, 2, 3).repeat(3, 1, 1, 1).unsqueeze(0).to('cuda'),
+                mask_video=mask_video.to('cuda'),
+                masked_video_latents=None,
+                prompt=caption,
+                negative_prompt=opts.negative_prompt,
+                height=384,
+                width=672,
+                device="cuda",
+                batch_size=1,
+                noise_aug_strength=0.0563,
+                max_sequence_length=226,
+                do_classifier_free_guidance=True,
+                ground_truth_video=depths_resized_norm[10:].permute(1, 0, 2, 3).repeat(3, 1, 1, 1).unsqueeze(0).to('cuda'),  # GT video for training
+                encode_for_training=True  # Flag to indicate training vs inference
+            )
         
         torch.save(
             latents_dict_depths,
             f'{save_dir}/depth_latents.pt'
         )
+        
+        
+        # encode several reference videos
+        latents_dict_ref_video = {}
+        
+        gt_video = frames_tensor_resized[10:].permute(1, 0, 2, 3).unsqueeze(0).to('cuda')
+        
+        # gt video has 49 frames. Encode several reference videos with different frame counts
+        # 10, 15, 20, 25, 30, 35, 40, 45
+        
+        for num_ref_frames in [10, 20, 30, 35, 40]:
+            indices = torch.linspace(0, gt_video.shape[2]-1, num_ref_frames).long()
+            # print(f"Encoding reference video with {num_ref_frames} frames, indices: {indices}")
+            ref_video = gt_video[:, :, indices]  # [3, ref_frames, H, W]
+            
+            # print("Ref video shape:", ref_video.shape)
+            with torch.no_grad():
+                ref_latents = encode_video_to_latents(
+                    trajcrafter.pipeline,
+                    ref_video,
+                    height=384,
+                    width=672,
+                    device='cuda',
+                    batch_size=1
+                )
+            # print("Ref latents shape:", ref_latents.shape)
+            latents_dict_ref_video[f'ref_latents_{num_ref_frames}_frames'] = ref_latents.cpu()
+        
+        torch.save(
+            latents_dict_ref_video,
+            f'{save_dir}/ref_videos_latents.pt'
+        )
+        
         
         samples_processed += 1
         current_idx += 1

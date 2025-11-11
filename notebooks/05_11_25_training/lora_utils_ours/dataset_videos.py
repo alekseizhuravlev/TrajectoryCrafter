@@ -22,7 +22,7 @@ class SimpleValidationDataset(Dataset):
     - warped_depths.pt: Warped conditioning depths
     """
     
-    def __init__(self, validation_dir, max_samples=None, use_depth=False):
+    def __init__(self, validation_dir, max_samples=None, use_depth=False, num_ref_frames=30):
         """
         Args:
             validation_dir: Directory containing validation sample folders
@@ -31,6 +31,8 @@ class SimpleValidationDataset(Dataset):
         """
         self.validation_dir = validation_dir
         self.use_depth = use_depth
+        self.num_ref_frames = num_ref_frames
+        print('Using num_ref_frames:', self.num_ref_frames)
         
         # Get all sample folders
         self.sample_folders = []
@@ -79,7 +81,7 @@ class SimpleValidationDataset(Dataset):
         
         if self.use_depth:
             # Load depth tensors
-            ref_depths = torch.load(os.path.join(videos_path, 'ref_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
+            # ref_depths = torch.load(os.path.join(videos_path, 'ref_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
             input_depths = torch.load(os.path.join(videos_path, 'input_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
             warped_depths = torch.load(os.path.join(videos_path, 'warped_depths.pt'), map_location='cpu', weights_only=True)  # [T, 1, H, W]
 
@@ -87,18 +89,27 @@ class SimpleValidationDataset(Dataset):
             masks = self._read_video(os.path.join(videos_path, 'masks.mp4'))
             
             # Process depths - already in correct format [T, C, H, W] and [0, 1] range
-            ref_video = ref_depths.float()  # [T, 1, H, W]
+            # ref_video = ref_depths.float()  # [T, 1, H, W]
             input_video = input_depths.float()  # [T, 1, H, W]
             warped_video = warped_depths.float()  # [T, 1, H, W]
             
             # Take first 10 frames for reference
-            ref_frames = min(10, ref_video.shape[0])
-            ref_video = ref_video[:ref_frames]  # [ref_frames, 1, H, W]
+            # ref_frames = min(10, ref_video.shape[0])
+            # ref_video = ref_video[:ref_frames]  # [ref_frames, 1, H, W]
             
             # Convert to [C, T, H, W] format to match RGB format
-            ref_video = ref_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, ref_frames, H, W]
+            # ref_video = ref_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, ref_frames, H, W]
+            
+            
             input_video = input_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, T, H, W]
             warped_video = warped_video.permute(1, 0, 2, 3).repeat(3, 1, 1, 1)  # [3, T, H, W]
+            
+            # use GT RGB video as reference, all 49 frames
+            ref_video = self._read_video(os.path.join(videos_path, 'input_video.mp4'))
+            ref_video = torch.from_numpy(ref_video).permute(3, 0, 1, 2) / 255.0
+            
+            indices = torch.linspace(0, ref_video.shape[1]-1, self.num_ref_frames).long()
+            ref_video = ref_video[:, indices]  # [3, ref_frames, H, W]
             
         else:
             # Load RGB videos (original code)

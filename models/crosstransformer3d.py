@@ -321,51 +321,83 @@ class PerceiverCrossAttention(nn.Module):
         )
         self.to_out = nn.Linear(inner_dim, dim, bias=False)
 
+    # def forward(self, x, latents):
+    #     """
+
+    #     Args:
+    #         x (torch.Tensor): Input image features with shape (batch_size, n1, D), where:
+    #             - batch_size (b): Number of samples in the batch.
+    #             - n1: Sequence length (e.g., number of patches or tokens).
+    #             - D: Feature dimension.
+
+    #         latents (torch.Tensor): Latent feature representations with shape (batch_size, n2, D), where:
+    #             - n2: Number of latent elements.
+
+    #     Returns:
+    #         torch.Tensor: Attention-modulated features with shape (batch_size, n2, D).
+
+    #     """
+    #     # Apply layer normalization to the input image and latent features
+    #     x = self.norm1(x)
+    #     latents = self.norm2(latents)
+
+    #     b, seq_len, _ = latents.shape
+
+    #     # Compute queries, keys, and values
+    #     q = self.to_q(latents)
+    #     k, v = self.to_kv(x).chunk(2, dim=-1)
+
+    #     # Reshape tensors to split into attention heads
+    #     q = reshape_tensor(q, self.heads)
+    #     k = reshape_tensor(k, self.heads)
+    #     v = reshape_tensor(v, self.heads)
+
+    #     # Compute attention weights
+    #     scale = 1 / math.sqrt(math.sqrt(self.dim_head))
+    #     weight = (q * scale) @ (k * scale).transpose(
+    #         -2, -1
+    #     )  # More stable scaling than post-division
+        
+    #     ########################################
+    #     # NEEDS FIX: this doubles gpu memory
+    #     ########################################
+        
+    #     # weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
+
+    #     # Compute the output via weighted combination of values
+    #     out = weight @ v
+
+    #     # Reshape and permute to prepare for final linear transformation
+    #     out = out.permute(0, 2, 1, 3).reshape(b, seq_len, -1)
+
+    #     return self.to_out(out)
+
+
     def forward(self, x, latents):
-        """
+        # print(x.dtype, latents.dtype)
+        with torch.cuda.amp.autocast(dtype=x.dtype):
+            x = self.norm1(x)
+            latents = self.norm2(latents)
 
-        Args:
-            x (torch.Tensor): Input image features with shape (batch_size, n1, D), where:
-                - batch_size (b): Number of samples in the batch.
-                - n1: Sequence length (e.g., number of patches or tokens).
-                - D: Feature dimension.
+            b, seq_len, _ = latents.shape
 
-            latents (torch.Tensor): Latent feature representations with shape (batch_size, n2, D), where:
-                - n2: Number of latent elements.
+            q = self.to_q(latents)
+            k, v = self.to_kv(x).chunk(2, dim=-1)
 
-        Returns:
-            torch.Tensor: Attention-modulated features with shape (batch_size, n2, D).
+            q = reshape_tensor(q, self.heads)
+            k = reshape_tensor(k, self.heads)
+            v = reshape_tensor(v, self.heads)
 
-        """
-        # Apply layer normalization to the input image and latent features
-        x = self.norm1(x)
-        latents = self.norm2(latents)
+            scale = 1 / math.sqrt(math.sqrt(self.dim_head))
+            weight = (q * scale) @ (k * scale).transpose(-2, -1)
 
-        b, seq_len, _ = latents.shape
+            weight = torch.softmax(weight, dim=-1)  # autocast handles promotion/demotion
+            out = weight @ v
 
-        # Compute queries, keys, and values
-        q = self.to_q(latents)
-        k, v = self.to_kv(x).chunk(2, dim=-1)
+            out = out.permute(0, 2, 1, 3).reshape(b, seq_len, -1)
+            return self.to_out(out)
 
-        # Reshape tensors to split into attention heads
-        q = reshape_tensor(q, self.heads)
-        k = reshape_tensor(k, self.heads)
-        v = reshape_tensor(v, self.heads)
-
-        # Compute attention weights
-        scale = 1 / math.sqrt(math.sqrt(self.dim_head))
-        weight = (q * scale) @ (k * scale).transpose(
-            -2, -1
-        )  # More stable scaling than post-division
-        weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
-
-        # Compute the output via weighted combination of values
-        out = weight @ v
-
-        # Reshape and permute to prepare for final linear transformation
-        out = out.permute(0, 2, 1, 3).reshape(b, seq_len, -1)
-
-        return self.to_out(out)
+    
 
 
 class CrossTransformer3DModel(ModelMixin, ConfigMixin):
@@ -547,7 +579,7 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
             self._init_cross_inputs()
             
         ##### Features
-        self.extracted_features = {}
+        # self.extracted_features = {}
         
 
     def _init_cross_inputs(self):
@@ -754,8 +786,8 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         encoder_hidden_states = hidden_states[:, :text_seq_length]
         hidden_states = hidden_states[:, text_seq_length:]
         
-        if hasattr(self, 'extracted_features'):
-            self.extracted_features['pos_embed'] = hidden_states.detach().clone()
+        # if hasattr(self, 'extracted_features'):
+        #     self.extracted_features['pos_embed'] = hidden_states.detach().clone()
 
         # 4. Transformer blocks
 
@@ -791,9 +823,9 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                 )
                 
             actual_num_layers = len(self.transformer_blocks)
-            if hasattr(self, 'extracted_features') and i % (actual_num_layers // 5) == 0 and i > 0: # [9, 18, 27, 36]:
-                self.extracted_features[f'transformer_block_{i}'] = hidden_states.detach().clone()
-                self.extracted_features[f'transformer_block_{i}_text'] = encoder_hidden_states.detach().clone()
+            # if hasattr(self, 'extracted_features') and i % (actual_num_layers // 5) == 0 and i > 0: # [9, 18, 27, 36]:
+            #     self.extracted_features[f'transformer_block_{i}'] = hidden_states.detach().clone()
+            #     self.extracted_features[f'transformer_block_{i}_text'] = encoder_hidden_states.detach().clone()
                 
                 
             if self.is_train_cross:
@@ -805,8 +837,8 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
                     )  # torch.Size([2, 32, 2048])  torch.Size([2, 17550, 3072])
                     ca_idx += 1
                     
-                    if hasattr(self, 'extracted_features'):
-                        self.extracted_features[f'cross_attn_{ca_idx-1}'] = hidden_states.detach().clone()
+                    # if hasattr(self, 'extracted_features'):
+                    #     self.extracted_features[f'cross_attn_{ca_idx-1}'] = hidden_states.detach().clone()
 
         # if not self.config.use_rotary_positional_embeddings:
         #     # CogVideoX-2B
@@ -817,8 +849,8 @@ class CrossTransformer3DModel(ModelMixin, ConfigMixin):
         hidden_states = self.norm_final(hidden_states)
         hidden_states = hidden_states[:, text_seq_length:]
         
-        if hasattr(self, 'extracted_features'):
-            self.extracted_features['final_norm'] = hidden_states.detach().clone()
+        # if hasattr(self, 'extracted_features'):
+        #     self.extracted_features['final_norm'] = hidden_states.detach().clone()
 
         # 5. Final block
         hidden_states = self.norm_out(hidden_states, temb=emb)

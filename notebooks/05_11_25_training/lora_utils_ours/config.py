@@ -70,10 +70,28 @@ def parse_args():
         help="Whether to use depth information."
     )
     parser.add_argument(
+        '--num_ref_frames',
+        type=int,
+        default=30,
+        help="Number of reference frames."
+    )
+    parser.add_argument(
         "--output_dir",
         type=str,
         default="sd-model-finetuned",
         help="The output directory where the model predictions and checkpoints will be written.",
+    )
+    parser.add_argument(
+        "--num_layers_to_keep",
+        type=int,
+        default=None,
+        help="Number of layers to keep in the U-Net model.",
+    )
+    parser.add_argument(
+        "--num_cross_layers_to_keep",
+        type=int,
+        default=None,
+        help="Number of cross attention layers to keep in the U-Net model.",
     )
     parser.add_argument(
         "--cache_dir",

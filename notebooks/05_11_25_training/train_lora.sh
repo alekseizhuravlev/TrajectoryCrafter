@@ -9,9 +9,9 @@ NCCL_DEBUG=INFO
 BASE_OUTPUT_DIR="/home/azhuravl/work/TrajectoryCrafter/experiments"
 DATE_DIR=$(date +"%d-%m-%Y")
 TIME_DIR=$(date +"%H-%M-%S")
-# OUTPUT_DIR="$BASE_OUTPUT_DIR/$DATE_DIR/$TIME_DIR"
+OUTPUT_DIR="$BASE_OUTPUT_DIR/$DATE_DIR/$TIME_DIR"
 
-OUTPUT_DIR="/home/azhuravl/work/TrajectoryCrafter/experiments/07-11-2025/13-33-14_copy"
+# OUTPUT_DIR="/home/azhuravl/work/TrajectoryCrafter/experiments/07-11-2025/13-33-14_copy"
 
 echo "Output directory: $OUTPUT_DIR"
 # Create the directory if it doesn't exist
@@ -20,7 +20,7 @@ mkdir -p "$OUTPUT_DIR"
 
 
 
-export TRAIN_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/monkaa_1000"
+export TRAIN_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/monkaa_wrev_ref_latents"
 export VAL_DATASET_NAME="/home/azhuravl/scratch/datasets_latents/driving_1000"
 
 # get random seed
@@ -30,7 +30,7 @@ seed=42
 # --use_depth \
 # --val_before_training
 # --save_state \
-
+# --val_before_training \
 # --resume_from_checkpoint "" \
 accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_utils_ours/main.py \
   --pretrained_model_name_or_path=$MODEL_NAME \
@@ -39,8 +39,12 @@ accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_util
   --max_val_samples=2 \
   --train_data_meta=$DATASET_META_NAME \
   --use_depth \
-  --rank 4 \
-  --network_alpha 4 \
+  --num_ref_frames 49 \
+  --num_layers_to_keep 16 \
+  --num_cross_layers_to_keep 2 \
+  --save_state \
+  --rank 2 \
+  --network_alpha 2 \
   --resume_from_checkpoint "latest" \
   --seed=$seed \
   --image_sample_size=1024 \
@@ -67,7 +71,8 @@ accelerate launch --mixed_precision="bf16" notebooks/05_11_25_training/lora_util
   --random_hw_adapt \
   --training_with_video_token_length \
   --enable_bucket \
-  --train_mode="inpaint" 
+  --train_mode="inpaint" \
+  --use_deepspeed
   # --low_vram \
 
   

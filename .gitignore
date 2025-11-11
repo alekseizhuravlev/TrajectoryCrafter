@@ -12,3 +12,6 @@ scripts/*
 videox_fun/*
 *.zip
 *.gif
+*.pickle
+*.pkl
+*.sh

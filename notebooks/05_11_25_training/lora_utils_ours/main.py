@@ -265,6 +265,7 @@ def main():
     train_dataset = LatentsDataset(
         args.train_data_dir,
         use_depth_latents=args.use_depth,
+        num_ref_frames=args.num_ref_frames,
     )
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
@@ -289,12 +290,14 @@ def main():
             validation_dir=args.train_data_dir,
             use_depth=args.use_depth,
             max_samples=args.max_val_samples,
+            num_ref_frames=args.num_ref_frames,
         )
                 
         val_dataset_test = SimpleValidationDataset(
             validation_dir=validation_data_dir,
             use_depth=args.use_depth,
             max_samples=args.max_val_samples,
+            num_ref_frames=args.num_ref_frames,
         )
         
         # combine datasets
@@ -406,13 +409,32 @@ def main():
     )
 
     # Run training loop
-    global_step = run_training_loop(
-        args, accelerator, train_dataloader, network, optimizer, lr_scheduler,
-        vae, text_encoder, tokenizer, transformer3d, noise_scheduler,
-        weight_dtype, global_step, first_epoch, None,
-        save_model, log_validation, rng, torch_rng, index_rng,
-        val_dataloader=val_dataloader  # Add this parameter
-    )
+    
+    # torch.cuda.memory._record_memory_history()
+    
+    try:
+        global_step = run_training_loop(
+            args, accelerator, train_dataloader, network, optimizer, lr_scheduler,
+            vae, text_encoder, tokenizer, transformer3d, noise_scheduler,
+            weight_dtype, global_step, first_epoch, None,
+            save_model, log_validation, rng, torch_rng, index_rng,
+            val_dataloader=val_dataloader  # Add this parameter
+        )
+    except Exception as e:
+        
+        # snapshot = torch.cuda.memory._snapshot()
+        # # torch.cuda.memory._dump_snapshot(
+        # #     snapshot,
+        # #     f"{args.output_dir}/gpu_mem_snapshot.json"
+        # #     )
+        # print(torch.cuda.memory_summary(device=0))
+        # torch.cuda.memory._dump_snapshot(f"{args.output_dir}/my_snapshot.pickle")
+
+    
+        logger.error(f"An error occurred during training: {e}")
+        raise e
+    
+    
     
     # Run training loop
     # global_step = run_training_loop(

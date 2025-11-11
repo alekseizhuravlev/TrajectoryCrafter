@@ -56,14 +56,21 @@ def setup_models(args, weight_dtype):
     
     # num_cross_layers_to_keep = 2
     # num_frozen_cross_layers = 1
+    
+    num_layers_to_keep = args.num_layers_to_keep
+    num_cross_layers_to_keep = args.num_cross_layers_to_keep
 
-    # print(f"Original model has {len(transformer3d.transformer_blocks)} layers")
+    if num_layers_to_keep and num_cross_layers_to_keep:
 
-    # # Keep only first 16 layers
-    # transformer3d.transformer_blocks = transformer3d.transformer_blocks[:num_layers_to_keep]
-    # transformer3d.perceiver_cross_attention = transformer3d.perceiver_cross_attention[:num_cross_layers_to_keep]
+        print(f"Original model has {len(transformer3d.transformer_blocks)} layers")
 
-    # print(f"Model now has {len(transformer3d.transformer_blocks)} layers and {len(transformer3d.perceiver_cross_attention)} cross-attention layers")
+        # Keep only first 16 layers
+        transformer3d.transformer_blocks = transformer3d.transformer_blocks[:num_layers_to_keep]
+        transformer3d.perceiver_cross_attention = transformer3d.perceiver_cross_attention[:num_cross_layers_to_keep]
+
+        print(f"Model now has {len(transformer3d.transformer_blocks)} layers and {len(transformer3d.perceiver_cross_attention)} cross-attention layers")
+    else:
+        print("Keeping all layers in the transformer3d model")
  
  
     ###################################################
@@ -73,7 +80,7 @@ def setup_models(args, weight_dtype):
     # Freeze vae and text_encoder and set transformer3d to trainable
     vae.requires_grad_(False)
     text_encoder.requires_grad_(False)
-    transformer3d.requires_grad_(False)
+    # transformer3d.requires_grad_(False)
 
 
     print(transformer3d)
@@ -90,38 +97,39 @@ def setup_models(args, weight_dtype):
         # skip_name="norm1.linear,norm2.linear,ff.net.0.proj,ff.net.2,time_embedding,patch_embed",
         skip_name = [
             # "perceiver_cross_attention.0",
-            "perceiver_cross_attention.1",
-            "perceiver_cross_attention.2",
+            # "perceiver_cross_attention.1",
+            # "perceiver_cross_attention.2",
             # #
             # "transformer_blocks.0.", "transformer_blocks.1.",
-            # "transformer_blocks.2.", "transformer_blocks.3.",
+            "transformer_blocks.2.", "transformer_blocks.3.",
             # "transformer_blocks.4.", "transformer_blocks.5.",
-            # "transformer_blocks.6.", "transformer_blocks.7.",
+            "transformer_blocks.6.",
+            # "transformer_blocks.7.",
             #
             # "transformer_blocks.8.", 
-            # "transformer_blocks.9.",
+            "transformer_blocks.9.",
             # "transformer_blocks.10.", 
-            "transformer_blocks.11.",
-            # "transformer_blocks.12.",
+            # "transformer_blocks.11.",
+            "transformer_blocks.12.",
             # "transformer_blocks.13.",
-            "transformer_blocks.14.",
-            # "transformer_blocks.15."
+            # "transformer_blocks.14.",
+            "transformer_blocks.15."
             # 
-            "transformer_blocks.16", 
+            # "transformer_blocks.16", 
             # "transformer_blocks.17",
-            # "transformer_blocks.18", 
-            "transformer_blocks.19",
+            "transformer_blocks.18", 
+            # "transformer_blocks.19",
             # "transformer_blocks.20",
-            # "transformer_blocks.21",
-            "transformer_blocks.22",
-            # "transformer_blocks.23",
+            "transformer_blocks.21",
+            # "transformer_blocks.22",
+            "transformer_blocks.23",
             #
             # "transformer_blocks.24",
-            "transformer_blocks.25",
-            # "transformer_blocks.26",
+            # "transformer_blocks.25",
+            "transformer_blocks.26",
             # "transformer_blocks.27",
-            "transformer_blocks.28",
-            # "transformer_blocks.29",
+            # "transformer_blocks.28",
+            "transformer_blocks.29",
             # "transformer_blocks.30",
             # "transformer_blocks.31", 
             #
@@ -129,12 +137,12 @@ def setup_models(args, weight_dtype):
             # "transformer_blocks.33",
             # "transformer_blocks.34",
             "transformer_blocks.35", 
-            # "transformer_blocks.36", 
+            "transformer_blocks.36", 
             # "transformer_blocks.37",
             "transformer_blocks.38", 
-            # "transformer_blocks.39",
+            "transformer_blocks.39",
             # "transformer_blocks.40",
-            "transformer_blocks.41",
+            # "transformer_blocks.41",
             # 
             "norm1.linear", "norm2.linear", "ff.net.0.proj",
             "ff.net.2", "time_embedding", "patch_embed",
