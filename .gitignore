@@ -15,3 +15,4 @@ videox_fun/*
 *.pickle
 *.pkl
 *.sh
+*.log

@@ -202,7 +202,7 @@ def load_video_frames(video_path, video_length, stride, max_res, device, reverse
         frames_tensor: PyTorch tensor (T, 3, H, W) in [-1,1]
     """
     # Load frames
-    frames_np = utils.read_video_frames(
+    frames_np = read_video_frames(
         video_path, video_length, stride, max_res,
         # height=opts.sample_size[0], width=opts.sample_size[1],
     )
