@@ -185,7 +185,7 @@ def align_depth_maps(depth1, depth2):
     return scale_factor
 
 
-def load_video_frames(video_path, video_length, stride, max_res, device, reverse=False):
+def load_video_frames(video_path, video_length, stride, max_res, device, reverse=False, height=None, width=None):
     """
     Load video frames with optional reversal
     
@@ -202,10 +202,16 @@ def load_video_frames(video_path, video_length, stride, max_res, device, reverse
         frames_tensor: PyTorch tensor (T, 3, H, W) in [-1,1]
     """
     # Load frames
-    frames_np = read_video_frames(
-        video_path, video_length, stride, max_res,
-        # height=opts.sample_size[0], width=opts.sample_size[1],
-    )
+    if height is not None and width is not None:
+        frames_np = read_video_frames(
+            video_path, video_length, stride, max_res,
+            height=height, width=width,
+        )
+    else:
+        frames_np = read_video_frames(
+            video_path, video_length, stride, max_res,
+            # height=opts.sample_size[0], width=opts.sample_size[1],
+        )
 
     # Pad if too short
     frames_np = pad_video(frames_np, video_length)
