@@ -526,7 +526,8 @@ class GlobalPointCloudWarper:
         transformation_target: torch.Tensor,
         intrinsic_target: torch.Tensor,
         image_size: tuple = (576, 1024),
-        point_size: int = 1
+        point_size: int = 1,
+        return_depth: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Vectorized Z-buffer rendering with proper color handling for larger points
@@ -639,7 +640,10 @@ class GlobalPointCloudWarper:
         final_frame = color_buffer.view(3, h, w).unsqueeze(0)
         final_mask = (depth_buffer > 0).float().view(1, 1, h, w)
         
-        return final_frame, final_mask
+        if return_depth:
+            return final_frame, final_mask, depth_buffer.view(1, 1, h, w)
+        else:
+            return final_frame, final_mask
 
 
 

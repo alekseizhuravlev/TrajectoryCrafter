@@ -10,7 +10,8 @@ sys.path.append('/home/azhuravl/work/TrajectoryCrafter/notebooks/12_11_25_consis
 
 from utils_autoregressive import load_video_frames, generate_traj_specified, TrajCrafterAutoregressive
 from parsing import get_parser
-from autoregressive_loop_alignment import autoregressive_loop, estimate_depth_with_padding
+from autoregressive_loop_alignment import autoregressive_loop, estimate_depth_without_alignment
+from autoregressive_loop_alignment import video_to_pcs, invert_depth_with_scale, imagenet_to_0_1
 from warper_point_cloud import GlobalPointCloudWarper
 
 
@@ -121,6 +122,10 @@ def setup_vda():
 
 if __name__ == '__main__':
     
+    #########################################
+    # Initialize models
+    #########################################
+    
     opts = setup_opts()
     
     vis_crafter = TrajCrafterAutoregressive(opts)
@@ -137,20 +142,17 @@ if __name__ == '__main__':
     )
     
     
+    ###########################################
+    # Read video, normalize to imagenet
+    ###########################################
+    
 
-    # TODO handle resizing and imagenet normalization
-    # TODO integrate into rest of the pipeline
-    
-    
-    # TODO: frames should be always [384, 672]
-    # TODO: for depth estimation, should be padded to multiple of 8, and then cropped back
-    
     frames, target_fps = read_video_frames(
         opts.video_path,
         32, args_vda.target_fps, args_vda.max_res
         ) # (32, 480, 854, 3) uint8 0 255
     # reverse the frames
-    frames = frames[::-1]
+    # frames = frames[::-1]
 
 
     frames_resized_im, orig_dims = prepare_frames(
@@ -161,10 +163,10 @@ if __name__ == '__main__':
     
     print('frames_resized_im', frames_resized_im.shape, frames_resized_im.dtype, frames_resized_im.min(), frames_resized_im.max())
 
-    frames_resized_denorm, orig_dims = prepare_frames(
-        frames, input_size=args_vda.input_size, normalize_imagenet=False
-    )
-    frames_resized_denorm = torch.clamp(frames_resized_denorm, 0.0, 1.0).squeeze(0)
+    # frames_resized_denorm, orig_dims = prepare_frames(
+    #     frames, input_size=args_vda.input_size, normalize_imagenet=False
+    # )
+    # frames_resized_denorm = torch.clamp(frames_resized_denorm, 0.0, 1.0).squeeze(0)
     # torch.Size([1, 32, 3, 266, 462]) torch.float32 tensor(0.) tensor(1.)
 
     # Estimate inverse depths with VDA
@@ -174,17 +176,28 @@ if __name__ == '__main__':
     #         ).permute(1, 0, 2, 3)  # [1, T, H, W] -> [T, 1, H, W]
 
 
-    depths_input_inv = estimate_depth_with_padding(
-        # frames_resized_im, 
-        frames_resized_denorm * 255.0,
-        video_depth_anything, 
-        opts.device,
-        multiple_of=14
-    )
+    # depths_input_inv = estimate_depth_with_padding(
+    #     # frames_resized_im, 
+    #     frames_resized_denorm * 255.0,
+    #     video_depth_anything, 
+    #     opts.device,
+    #     multiple_of=14
+    # )
+    
+    
+    ###############################################
+    # Estimate depth - will be used as anchor
+    ###############################################
     
     depth_scale = 10000.0  # set depth scale
-
-    depths_input = depth_scale / depths_input_inv
+    
+    depths_input = estimate_depth_without_alignment(
+        frames_resized_im,
+        depth_trainer,
+        depth_scale,
+    )
+    
+    depths_input_inv = invert_depth_with_scale(depths_input, depth_scale)
 
     print('depths_input_inv', depths_input_inv.shape, depths_input_inv.dtype, depths_input_inv.min(), depths_input_inv.max())
     print('depths_input', depths_input.shape, depths_input.dtype, depths_input.min(), depths_input.max())
@@ -200,7 +213,7 @@ if __name__ == '__main__':
 
 
     ##########################################
-    # Cameras
+    # Camera trajectories
     ##########################################
 
     radius = (
@@ -210,10 +223,6 @@ if __name__ == '__main__':
     # radius = min(radius, 5)
     
     print(f"Estimated radius: {radius}")
-    # exit(0)
-
-    # radius = 10
-
 
     c2ws_anchor = torch.tensor([ 
                 [-1.0, 0.0, 0.0, 0.0],
@@ -231,24 +240,40 @@ if __name__ == '__main__':
     c2ws_target[:, 2, 3] += radius
 
     c2ws_init = c2ws_target[0].repeat(opts.video_length, 1, 1)
-
-
     traj_segments = c2ws_target.view(opts.n_splits, opts.video_length, 4, 4)
     
-    ##########################
     
-    frames_source_im = None
-    frames_target_im = frames_resized_im
+    ###############################################
+    # Initialize global point clouds
+    ###############################################
+    
+    frames_resized_tensor = imagenet_to_0_1(frames_resized_im).to(opts.device) * 2.0 - 1.0
+    
+    global_pcs, global_colors = video_to_pcs(
+        frames_resized_tensor,
+        depths_input,
+        intrinsics_torch=vis_crafter.K,
+        extrinsics_torch=c2ws_init,
+        funwarp=funwarp,
+    )
+    
+    ###############################################
+    # Autoregressive loop
+    ###############################################
+    
+    frames_source_im = frames_resized_im
 
     poses_source = c2ws_init
     poses_target = traj_segments[0]
         
     for i in range(opts.n_splits):
-        segment_dir_autoreg = autoregressive_loop(
+        
+        segment_dir_autoreg, global_pcs, global_colors = autoregressive_loop(
             frames_source_im,
-            frames_target_im,
             poses_source,
             poses_target,
+            global_pcs,
+            global_colors,
             radius,
             opts,  
             vis_crafter,
@@ -257,25 +282,22 @@ if __name__ == '__main__':
             depth_trainer,
             args_vda,
             depth_scale,
+            i
         )
         
-        # concatenate frames_source_im and frames_target_im, handling None initially
-        if frames_source_im is None:
-            frames_source_im = frames_target_im
-        else:
-            frames_source_im = torch.cat([frames_source_im, frames_target_im], axis=0)
+        # next pose in sequence
+        poses_source = poses_target
+        poses_target = traj_segments[i+1] if i + 1 < opts.n_splits else None
         
-        # frames_target_im, _ = load_video_frames(
-        #     segment_dir_autoreg + '/gen.mp4', 
-        #     opts.video_length, 
-        #     opts.stride, 
-        #     opts.max_res,
-        #     opts.device,
-        #     reverse=False
-        # )
-
+        
+        ###############################################
+        # Read generated video frames for next iteration
+        ###############################################
+        
+        # TODO: remove reading video
+        
         print('frames_source_im', frames_source_im.shape, frames_source_im.dtype, frames_source_im.min(), frames_source_im.max())
-        print('frames_target_im', frames_target_im.shape, frames_target_im.dtype, frames_target_im.min(), frames_target_im.max())
+        # print('frames_target_im', frames_target_im.shape, frames_target_im.dtype, frames_target_im.min(), frames_target_im.max())
 
         frames, target_fps = read_video_frames(
             segment_dir_autoreg + '/gen.mp4',
@@ -292,10 +314,35 @@ if __name__ == '__main__':
         
         print('frames_resized_im', frames_resized_im.shape, frames_resized_im.dtype, frames_resized_im.min(), frames_resized_im.max())
 
-        frames_target_im = frames_resized_im
+        frames_source_im = frames_resized_im
         
-        poses_source = torch.cat([poses_source, poses_target], dim=0)
-        poses_target = traj_segments[i+1] if i + 1 < opts.n_splits else None
         
+        
+        
+        
+        
+
         # break
             
+            
+            
+# segment_dir_autoreg = autoregressive_loop(
+#     frames_source_im,
+#     frames_target_im,
+#     poses_source,
+#     poses_target,
+#     radius,
+#     opts,  
+#     vis_crafter,
+#     funwarp,
+#     video_depth_anything,
+#     depth_trainer,
+#     args_vda,
+#     depth_scale,
+# )
+
+# # concatenate frames_source_im and frames_target_im, handling None initially
+# if frames_source_im is None:
+#     frames_source_im = frames_target_im
+# else:
+#     frames_source_im = torch.cat([frames_source_im, frames_target_im], axis=0)

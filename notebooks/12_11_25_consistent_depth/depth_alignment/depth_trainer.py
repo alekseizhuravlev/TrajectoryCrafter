@@ -3,6 +3,13 @@ import torch.nn as nn
 from depth_losses import CombinedDepthLossWithTAE, DifferentiableTAELoss
 import logging
 import sys
+sys.path.append('/home/azhuravl/work/Video-Depth-Anything')
+from loss.loss import compute_scale_and_shift
+
+sys.path.append('/home/azhuravl/work/TrajectoryCrafter/notebooks/12_11_25_consistent_depth/depth_alignment')
+from consistent_depth import evaluate_tae
+
+
 
 class DepthAlignmentTrainer:
     def __init__(self, video_depth_model, lr=2e-3, device='cuda', logger=None):
